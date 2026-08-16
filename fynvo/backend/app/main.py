@@ -38,6 +38,13 @@ from .finance import (
     today_local,
     update_planned,
 )
+from .forecast import (
+    compare_scenario,
+    create_effective_change,
+    forecast_drilldown,
+    generate_forecast,
+    list_effective_changes,
+)
 from .ledger import (
     ACCOUNT_TYPES,
     archive_account,
@@ -158,6 +165,7 @@ def dashboard_overview(range_days: int = 90, current_user: User = USER_DEPENDENC
     position = dashboard_position(db, current_user)
     start = today_local()
     scheduled = schedule_summary(db, current_user, start, start + timedelta(days=range_days))
+    forecast = generate_forecast(db, current_user, "30d", "baseline")
     bills = list_bills(db, current_user)
     recurring = list_recurring(db, current_user)
     planned = list_planned(db, current_user)
@@ -171,6 +179,7 @@ def dashboard_overview(range_days: int = 90, current_user: User = USER_DEPENDENC
     overview.summary.income = scheduled["income"]
     overview.summary.recurring_bills = scheduled["commitments"]
     overview.summary.planned_spending = cents_to_decimal(planned_forecast)
+    overview.summary.projected_balance = forecast["final_balance"]
     overview.summary.overdue_amount = cents_to_decimal(overdue_amount)
     overview.summary.incomplete_recurring_count = len([item for item in recurring if "incomplete" in item["completeness"]])
     overview.summary.incomplete_planned_count = len([item for item in planned if item["completeness"] == "incomplete"])
@@ -183,9 +192,12 @@ def dashboard_overview(range_days: int = 90, current_user: User = USER_DEPENDENC
     overview.quick_stats = [
         {"label": "Incomplete recurring records", "value": overview.summary.incomplete_recurring_count},
         {"label": "Incomplete planned items", "value": overview.summary.incomplete_planned_count},
-        {"label": "Scheduled net movement", "value": scheduled["net"]},
+        {"label": "30-day forecast balance", "value": forecast["final_balance"]},
+        {"label": "Lowest forecast balance", "value": forecast["lowest_balance"]["balance"]},
     ]
-    overview.empty_state = "Income, recurring expenses, bills and planned spending are powering this overview."
+    if forecast["shortfall"]:
+        overview.quick_stats.append({"label": "Projected shortfall", "value": forecast["shortfall"]["balance"], "date": forecast["shortfall"]["date"]})
+    overview.empty_state = "Income, recurring expenses, bills, planned spending and forecasts are powering this overview."
     return overview
 
 
@@ -322,6 +334,35 @@ def schedule_month(year: int, month: int, current_user: User = USER_DEPENDENCY, 
 @app.get("/api/schedule/year/{year}")
 def schedule_year(year: int, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
     return annual_matrix(db, current_user, year)
+
+
+@app.get("/api/forecast")
+def forecast(horizon: str = "30d", mode: str = "baseline", start: date | None = None, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    if mode not in {"baseline", "expected"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="mode must be baseline or expected")
+    return generate_forecast(db, current_user, horizon, mode, start)
+
+
+@app.get("/api/forecast/drilldown")
+def forecast_breakdown(period: str = "month", horizon: str = "30d", mode: str = "baseline", current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    if period not in {"day", "month"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="period must be day or month")
+    return forecast_drilldown(db, current_user, period, horizon, mode)
+
+
+@app.post("/api/forecast/scenario")
+def scenario_forecast(payload: dict, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return compare_scenario(db, current_user, payload)
+
+
+@app.get("/api/effective-amount-changes")
+def amount_changes(current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return list_effective_changes(db, current_user)
+
+
+@app.post("/api/effective-amount-changes", status_code=status.HTTP_201_CREATED)
+def add_amount_change(payload: dict, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return create_effective_change(db, current_user, payload)
 
 
 frontend_dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"

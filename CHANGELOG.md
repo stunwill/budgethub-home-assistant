@@ -2,6 +2,33 @@
 
 All notable Fynvo changes are documented here. Starting with v0.3.0, every release must include a user-readable changelog entry, Home Assistant-visible release notes and GitHub release notes.
 
+## v0.6.0
+
+### Added
+- Added reusable cash-flow forecasting engine.
+- Added Baseline Forecast using current balances, income, recurring expenses, bills and Planned Spending.
+- Added Expected Forecast with historical run-rate spending estimates where enough transaction history exists.
+- Added chronological forecast timeline with projected balance after each event.
+- Added lowest projected balance and projected shortfall detection.
+- Added effective-dated amount changes for recurring income and recurring expenses.
+- Added forecast drill-down API for month/day grouped forecast records.
+- Added lightweight what-if scenario comparisons that do not modify real records.
+- Added forecast chart data for balance-over-time visualisation.
+- Added dashboard forecast balance and lowest-balance summary.
+- Added cash-flow forecasting documentation and v0.6.0 release notes.
+
+### Changed
+- Updated Fynvo version references to v0.6.0.
+- Expanded the product roadmap with financial calendar, advanced budgeting, rollover budgets, sinking funds, import/reconciliation, CDR/Open Banking, recurring intelligence, Planned vs Actual matching, Home Assistant sensors and forecast intelligence.
+- Clarified Actual, Committed, Planned, Budget and Forecast as separate Fynvo product concepts.
+
+### Fixed
+- Kept scenario calculations isolated so hypothetical changes do not create or edit real financial records.
+- Kept historical run-rate estimates separate from known recurring expenses, bills and Planned Spending to reduce double-counting.
+
+### Security
+- Forecast, scenario and effective-amount-change APIs require the authenticated server-side session and are scoped to the authenticated user.
+
 ## v0.5.0
 
 ### Added

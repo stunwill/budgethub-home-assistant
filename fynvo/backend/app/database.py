@@ -98,14 +98,31 @@ def run_migrations() -> None:
                 FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(account_id) REFERENCES accounts(id)
             )
         """))
+        connection.execute(text("""
+            CREATE TABLE IF NOT EXISTS effective_amount_changes (
+                id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, record_type VARCHAR(40) NOT NULL,
+                record_id INTEGER NOT NULL, new_amount_cents INTEGER NOT NULL,
+                effective_from DATE NOT NULL, effective_to DATE, source VARCHAR(80),
+                notes TEXT, created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+        """))
+        connection.execute(text("""
+            CREATE TABLE IF NOT EXISTS forecast_scenarios (
+                id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, name VARCHAR(140) NOT NULL,
+                description TEXT, payload TEXT NOT NULL, created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+        """))
         current = connection.execute(text("SELECT version FROM schema_version ORDER BY version DESC LIMIT 1")).scalar()
         if current is None:
-            connection.execute(text("INSERT INTO schema_version (version) VALUES (5)"))
-        elif current < 5:
-            connection.execute(text("UPDATE schema_version SET version = 5"))
+            connection.execute(text("INSERT INTO schema_version (version) VALUES (6)"))
+        elif current < 6:
+            connection.execute(text("UPDATE schema_version SET version = 6"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_account_date ON transactions(account_id, transaction_date)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_user_type ON transactions(user_id, transaction_type)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_source ON transactions(source)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_user_category_date ON transactions(user_id, category, transaction_date)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_income_user_next ON income_sources(user_id, next_payment_date)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_recurring_user_next ON recurring_expenses(user_id, next_due_date)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_recurring_user_active ON recurring_expenses(user_id, is_active)"))
@@ -114,6 +131,8 @@ def run_migrations() -> None:
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_planned_user_date ON planned_spending(user_id, planned_date)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_planned_user_status ON planned_spending(user_id, status)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_planned_forecast ON planned_spending(user_id, include_in_forecast)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS idx_effective_changes_record ON effective_amount_changes(user_id, record_type, record_id, effective_from)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS idx_scenarios_user ON forecast_scenarios(user_id, name)"))
 
 
 def reset_database_for_tests() -> None:
