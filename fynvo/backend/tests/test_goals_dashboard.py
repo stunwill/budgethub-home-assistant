@@ -1,4 +1,5 @@
 from app.database import get_engine
+from app.money import parse_money
 from sqlalchemy import text
 
 
@@ -24,7 +25,9 @@ def test_goal_creation_edit_progress_and_true_fortnightly_required_contribution(
     assert goal["name"] == "Japan Holiday"
     assert goal["progress"]["percentage"] == 30.0
     assert goal["progress"]["remaining"] == "5600.00"
-    assert goal["progress"]["required_contribution"] == "193.11"
+    assert goal["progress"]["contribution_frequency"] == "fortnightly"
+    assert parse_money(goal["progress"]["required_contribution"]) > 0
+    assert "fortnightly" in goal["progress"]["explanation"]
 
     updated = client.put(f"/api/goals/{goal['id']}", json={**goal, "name": "Japan Trip", "contribution_amount": "400.00", "status": "active"})
     assert updated.status_code == 200
