@@ -15,6 +15,8 @@ This roadmap is the canonical development queue for Fynvo. Future development sh
 9. Make financial records maintainable after creation.
 10. Feed Manual Entry, CSV Import and future CDR/Open Banking into one Actual transaction pipeline.
 11. Keep spending intelligence local, explainable and user-controlled.
+12. Treat Goals as forward-looking financial planning records distinct from Budgets and Planned Spending.
+13. The Overview dashboard should be a household financial command centre, not a development-status page.
 
 ## Core product concepts
 
@@ -29,6 +31,9 @@ Known or intended future spending that has not yet occurred.
 
 ### Budget
 The amount the household intends or permits itself to spend for a category, period, account, person or goal.
+
+### Goal
+A desired future financial position or amount, such as a savings target, emergency fund, planned purchase, annual obligation or debt-reduction target.
 
 ### Forecast
 What Fynvo calculates is likely to happen based on balances, commitments, plans, budgets where available and historical behaviour where appropriate.
@@ -162,7 +167,7 @@ Delivered scope:
 
 ### v0.10.0 - Spending Intelligence
 
-Status: Implemented in the v0.10.0 development PR.
+Status: Completed.
 
 Delivered scope:
 - reusable source-independent spending intelligence service;
@@ -185,13 +190,34 @@ Delivered scope:
 
 ### v0.11.0 - Goals & Financial Planning
 
-Planned scope:
-- savings targets;
-- sinking funds;
-- target dates;
-- required contributions;
-- goal forecasting;
-- planning for irregular costs such as registration, insurance, Christmas, school expenses, holidays and home maintenance.
+Status: Implemented in the v0.11.0 development PR.
+
+Delivered scope:
+- first-class Financial Goals domain;
+- savings, target-balance, planned-purchase, annual and debt-reduction goal types;
+- Goal creation, editing, completion and cancellation;
+- Goal progress with target, current, remaining and percentage complete;
+- weekly, true fortnightly and monthly required-contribution calculations;
+- calculated on-track, ahead and behind status;
+- forecast completion date from current contribution rate;
+- account allocations and unallocated savings reporting;
+- contribution tracking foundation;
+- Goal and Planned Spending link foundation;
+- Goal What-If contribution calculations using temporary forecast scenario impact;
+- command-centre dashboard aggregation endpoint;
+- redesigned Overview dashboard aligned to the supplied Fynvo mock-up;
+- five-card KPI row;
+- Cash Flow Forecast chart;
+- Forecast Summary;
+- Upcoming Commitments;
+- Upcoming events;
+- Top Planned Spending with Quick Add;
+- Quick Stats;
+- Budget Overview;
+- Goals dashboard section;
+- Spending Intelligence attention indicator;
+- removal of development-oriented panels from the household Overview;
+- improved Quick Add forms and validation feedback.
 
 ### v0.12.0 - Australian Open Banking / CDR
 
@@ -206,7 +232,8 @@ Planned scope:
 - saved scenarios;
 - forecast confidence;
 - forecast accuracy tracking;
-- explainable scenario comparisons.
+- explainable scenario comparisons;
+- scenario impact on Goals, budgets and cash-flow constraints.
 
 ### v0.14.0 - Insights & Financial Health
 
@@ -214,14 +241,15 @@ Planned scope:
 - explainable household finance insights;
 - financial-health scorecards;
 - risk warnings;
-- trend interpretation.
+- trend interpretation;
+- goal achievability insights and competing-priority summaries.
 
 ### v0.15.0 - Home Assistant Integration
 
 Planned scope:
 - Home Assistant sensors;
 - dashboard cards;
-- automations for shortfalls, upcoming bills and budget warnings.
+- automations for shortfalls, upcoming bills, budget warnings and goal progress.
 
 ### v1.0.0 - Production Release
 
