@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
 from calendar import monthrange
+from datetime import date, timedelta
 
 from fastapi import HTTPException, status
 from sqlalchemy import text
@@ -59,6 +59,10 @@ BILL_SEED = [
 ]
 
 
+def today_local() -> date:
+    return utcnow().date()
+
+
 def _d(value: str | None) -> date | None:
     return date.fromisoformat(value) if value else None
 
@@ -81,22 +85,53 @@ def ensure_seed_data(db: DbSession, user: User) -> None:
     if seeded:
         return
     for name, amount, frequency, next_due, dd, source_account, category, typ, active, variable, notes in RECURRING_SEED:
-        db.execute(text("""
-            INSERT INTO recurring_expenses (user_id, name, amount_cents, frequency, next_due_date, direct_debit, account_id, source_account_text, category, expense_type, is_active, variable_amount, notes, source, created_at, updated_at)
-            VALUES (:user_id, :name, :amount, :frequency, :next_due, :direct_debit, :account_id, :source_account, :category, :expense_type, :is_active, :variable_amount, :notes, 'seed', :now, :now)
-        """), {
-            "user_id": user.id, "name": name, "amount": _c(amount), "frequency": frequency, "next_due": _d(next_due), "direct_debit": dd,
-            "account_id": account_match(db, user, source_account), "source_account": source_account, "category": category, "expense_type": typ,
-            "is_active": active, "variable_amount": variable, "notes": notes, "now": utcnow(),
-        })
+        db.execute(
+            text("""
+                INSERT INTO recurring_expenses (user_id, name, amount_cents, frequency, next_due_date, direct_debit, account_id, source_account_text, category, expense_type, is_active, variable_amount, notes, source, created_at, updated_at)
+                VALUES (:user_id, :name, :amount, :frequency, :next_due, :direct_debit, :account_id, :source_account, :category, :expense_type, :is_active, :variable_amount, :notes, 'seed', :now, :now)
+            """),
+            {
+                "user_id": user.id,
+                "name": name,
+                "amount": _c(amount),
+                "frequency": frequency,
+                "next_due": _d(next_due),
+                "direct_debit": dd,
+                "account_id": account_match(db, user, source_account),
+                "source_account": source_account,
+                "category": category,
+                "expense_type": typ,
+                "is_active": active,
+                "variable_amount": variable,
+                "notes": notes,
+                "now": utcnow(),
+            },
+        )
     db.flush()
     recurring = {row.name.lower(): row.id for row in db.execute(text("SELECT id, name FROM recurring_expenses WHERE user_id = :user_id"), {"user_id": user.id}).all()}
     for name, provider, typ, priority, original_status, due, amount, pay_cycle, paid_through, notes in BILL_SEED:
-        link = recurring.get(name.lower()) or recurring.get((provider or '').lower())
-        db.execute(text("""
-            INSERT INTO bills (user_id, recurring_expense_id, name, provider, bill_type, priority, original_status, original_amount_cents, remaining_amount_cents, due_date, pay_cycle_date, paid_through_date, notes, is_active, source, created_at, updated_at)
-            VALUES (:user_id, :recurring_id, :name, :provider, :bill_type, :priority, :original_status, :amount, :amount, :due_date, :pay_cycle_date, :paid_through_date, :notes, 1, 'seed', :now, :now)
-        """), {"user_id": user.id, "recurring_id": link, "name": name, "provider": provider, "bill_type": typ, "priority": priority, "original_status": original_status, "amount": _c(amount), "due_date": _d(due), "pay_cycle_date": _d(pay_cycle), "paid_through_date": _d(paid_through), "notes": notes, "now": utcnow()})
+        link = recurring.get(name.lower()) or recurring.get((provider or "").lower())
+        db.execute(
+            text("""
+                INSERT INTO bills (user_id, recurring_expense_id, name, provider, bill_type, priority, original_status, original_amount_cents, remaining_amount_cents, due_date, pay_cycle_date, paid_through_date, notes, is_active, source, created_at, updated_at)
+                VALUES (:user_id, :recurring_id, :name, :provider, :bill_type, :priority, :original_status, :amount, :amount, :due_date, :pay_cycle_date, :paid_through_date, :notes, 1, 'seed', :now, :now)
+            """),
+            {
+                "user_id": user.id,
+                "recurring_id": link,
+                "name": name,
+                "provider": provider,
+                "bill_type": typ,
+                "priority": priority,
+                "original_status": original_status,
+                "amount": _c(amount),
+                "due_date": _d(due),
+                "pay_cycle_date": _d(pay_cycle),
+                "paid_through_date": _d(paid_through),
+                "notes": notes,
+                "now": utcnow(),
+            },
+        )
     db.execute(text("INSERT INTO app_config (key, value, updated_at) VALUES (:key, 'true', :now)"), {"key": f"v0.4.seeded.{user.id}", "now": utcnow()})
     db.commit()
 
@@ -122,16 +157,16 @@ def completeness(amount: int | None, frequency: str | None, when: date | None, a
 
 
 def bill_status(due: date | None, paid_at, resolved_at, remaining: int | None, today: date | None = None) -> str:
-    today = today or date.today()
+    current_day = today or today_local()
     if paid_at or resolved_at or remaining == 0:
         return "paid"
     if due is None:
         return "unknown"
-    if due < today:
+    if due < current_day:
         return "overdue"
-    if due == today:
+    if due == current_day:
         return "due_today"
-    if due <= today + timedelta(days=7):
+    if due <= current_day + timedelta(days=7):
         return "due_soon"
     return "upcoming"
 
@@ -159,7 +194,7 @@ def occurrences(start: date | None, end: date, amount: int | None, frequency: st
     if not start or amount is None:
         return []
     current = start
-    while current < date.today() - timedelta(days=370) and frequency != "one_off":
+    while current < today_local() - timedelta(days=370) and frequency != "one_off":
         nxt = add_period(current, frequency, interval)
         if not nxt or nxt <= current:
             break
@@ -177,20 +212,64 @@ def occurrences(start: date | None, end: date, amount: int | None, frequency: st
 
 def recurring_response(row) -> dict:
     state, missing = completeness(row.amount_cents, row.frequency, row.next_due_date, row.account_id, bool(row.is_active))
-    return {"id": row.id, "name": row.name, "amount": cents_to_decimal(row.amount_cents) if row.amount_cents is not None else None, "frequency": row.frequency, "next_due_date": row.next_due_date.isoformat() if row.next_due_date else None, "direct_debit": row.direct_debit, "account_id": row.account_id, "source_account_text": row.source_account_text, "category": row.category, "expense_type": row.expense_type, "owner_group": row.owner_group, "is_active": bool(row.is_active), "variable_amount": bool(row.variable_amount), "notes": row.notes, "completeness": state, "missing_fields": missing}
+    return {
+        "id": row.id,
+        "name": row.name,
+        "amount": cents_to_decimal(row.amount_cents) if row.amount_cents is not None else None,
+        "frequency": row.frequency,
+        "next_due_date": row.next_due_date.isoformat() if row.next_due_date else None,
+        "direct_debit": row.direct_debit,
+        "account_id": row.account_id,
+        "source_account_text": row.source_account_text,
+        "category": row.category,
+        "expense_type": row.expense_type,
+        "owner_group": row.owner_group,
+        "is_active": bool(row.is_active),
+        "variable_amount": bool(row.variable_amount),
+        "notes": row.notes,
+        "completeness": state,
+        "missing_fields": missing,
+    }
 
 
 def bill_response(row, today: date | None = None) -> dict:
-    status_value = bill_status(row.due_date, row.paid_at, row.resolved_at, row.remaining_amount_cents, today)
-    days_overdue = (today or date.today() - row.due_date).days if row.due_date and status_value == "overdue" else None
-    if row.due_date and status_value == "overdue":
-        days_overdue = ((today or date.today()) - row.due_date).days
-    return {"id": row.id, "recurring_expense_id": row.recurring_expense_id, "name": row.name, "provider": row.provider, "bill_type": row.bill_type, "priority": row.priority, "original_status": row.original_status, "amount": cents_to_decimal(row.remaining_amount_cents) if row.remaining_amount_cents is not None else None, "due_date": row.due_date.isoformat() if row.due_date else None, "pay_cycle_date": row.pay_cycle_date.isoformat() if row.pay_cycle_date else None, "paid_through_date": row.paid_through_date.isoformat() if row.paid_through_date else None, "notes": row.notes, "status": status_value, "days_overdue": days_overdue}
+    current_day = today or today_local()
+    status_value = bill_status(row.due_date, row.paid_at, row.resolved_at, row.remaining_amount_cents, current_day)
+    days_overdue = (current_day - row.due_date).days if row.due_date and status_value == "overdue" else None
+    return {
+        "id": row.id,
+        "recurring_expense_id": row.recurring_expense_id,
+        "name": row.name,
+        "provider": row.provider,
+        "bill_type": row.bill_type,
+        "priority": row.priority,
+        "original_status": row.original_status,
+        "amount": cents_to_decimal(row.remaining_amount_cents) if row.remaining_amount_cents is not None else None,
+        "due_date": row.due_date.isoformat() if row.due_date else None,
+        "pay_cycle_date": row.pay_cycle_date.isoformat() if row.pay_cycle_date else None,
+        "paid_through_date": row.paid_through_date.isoformat() if row.paid_through_date else None,
+        "notes": row.notes,
+        "status": status_value,
+        "days_overdue": days_overdue,
+    }
 
 
 def income_response(row) -> dict:
     state, missing = completeness(row.amount_cents, row.frequency, row.next_payment_date, row.destination_account_id, bool(row.is_active))
-    return {"id": row.id, "name": row.name, "amount": cents_to_decimal(row.amount_cents) if row.amount_cents is not None else None, "frequency": row.frequency, "next_payment_date": row.next_payment_date.isoformat() if row.next_payment_date else None, "destination_account_id": row.destination_account_id, "payer": row.payer, "category": row.category, "is_active": bool(row.is_active), "notes": row.notes, "completeness": state, "missing_fields": missing}
+    return {
+        "id": row.id,
+        "name": row.name,
+        "amount": cents_to_decimal(row.amount_cents) if row.amount_cents is not None else None,
+        "frequency": row.frequency,
+        "next_payment_date": row.next_payment_date.isoformat() if row.next_payment_date else None,
+        "destination_account_id": row.destination_account_id,
+        "payer": row.payer,
+        "category": row.category,
+        "is_active": bool(row.is_active),
+        "notes": row.notes,
+        "completeness": state,
+        "missing_fields": missing,
+    }
 
 
 def list_income(db: DbSession, user: User) -> list[dict]:
@@ -201,10 +280,31 @@ def list_income(db: DbSession, user: User) -> list[dict]:
 def create_income(db: DbSession, user: User, payload) -> dict:
     if payload.frequency and payload.frequency not in FREQUENCIES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid frequency")
-    db.execute(text("""INSERT INTO income_sources (user_id, name, amount_cents, frequency, interval_count, next_payment_date, destination_account_id, payer, category, is_active, start_date, end_date, notes, source, created_at, updated_at)
-        VALUES (:user_id, :name, :amount, :frequency, :interval_count, :next_payment_date, :account_id, :payer, :category, :active, :start_date, :end_date, :notes, 'manual', :now, :now)"""), {"user_id": user.id, "name": payload.name, "amount": _c(payload.amount), "frequency": payload.frequency, "interval_count": payload.interval_count, "next_payment_date": payload.next_payment_date, "account_id": payload.destination_account_id, "payer": payload.payer, "category": payload.category, "active": payload.is_active, "start_date": payload.start_date, "end_date": payload.end_date, "notes": payload.notes, "now": utcnow()})
+    db.execute(
+        text("""
+            INSERT INTO income_sources (user_id, name, amount_cents, frequency, interval_count, next_payment_date, destination_account_id, payer, category, is_active, start_date, end_date, notes, source, created_at, updated_at)
+            VALUES (:user_id, :name, :amount, :frequency, :interval_count, :next_payment_date, :account_id, :payer, :category, :active, :start_date, :end_date, :notes, 'manual', :now, :now)
+        """),
+        {
+            "user_id": user.id,
+            "name": payload.name,
+            "amount": _c(payload.amount),
+            "frequency": payload.frequency,
+            "interval_count": payload.interval_count,
+            "next_payment_date": payload.next_payment_date,
+            "account_id": payload.destination_account_id,
+            "payer": payload.payer,
+            "category": payload.category,
+            "active": payload.is_active,
+            "start_date": payload.start_date,
+            "end_date": payload.end_date,
+            "notes": payload.notes,
+            "now": utcnow(),
+        },
+    )
+    row = db.execute(text("SELECT * FROM income_sources WHERE id = last_insert_rowid()")).first()
     db.commit()
-    return list_income(db, user)[0]
+    return income_response(row)
 
 
 def list_recurring(db: DbSession, user: User, filter_value: str = "all") -> list[dict]:
@@ -225,10 +325,35 @@ def list_recurring(db: DbSession, user: User, filter_value: str = "all") -> list
 def create_recurring(db: DbSession, user: User, payload) -> dict:
     if payload.frequency and payload.frequency not in FREQUENCIES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid frequency")
-    db.execute(text("""INSERT INTO recurring_expenses (user_id, name, amount_cents, frequency, interval_count, next_due_date, direct_debit, account_id, source_account_text, category, expense_type, owner_group, is_active, variable_amount, aliases, notes, last_paid_date, source, created_at, updated_at)
-        VALUES (:user_id, :name, :amount, :frequency, :interval_count, :next_due_date, :direct_debit, :account_id, :source_account_text, :category, :expense_type, :owner_group, :is_active, :variable_amount, :aliases, :notes, :last_paid_date, 'manual', :now, :now)"""), {"user_id": user.id, "name": payload.name, "amount": _c(payload.amount), "frequency": payload.frequency, "interval_count": payload.interval_count, "next_due_date": payload.next_due_date, "direct_debit": payload.direct_debit, "account_id": payload.account_id, "source_account_text": payload.source_account_text, "category": payload.category, "expense_type": payload.expense_type, "owner_group": payload.owner_group, "is_active": payload.is_active, "variable_amount": payload.variable_amount, "aliases": payload.aliases, "notes": payload.notes, "last_paid_date": payload.last_paid_date, "now": utcnow()})
+    db.execute(
+        text("""
+            INSERT INTO recurring_expenses (user_id, name, amount_cents, frequency, interval_count, next_due_date, direct_debit, account_id, source_account_text, category, expense_type, owner_group, is_active, variable_amount, aliases, notes, last_paid_date, source, created_at, updated_at)
+            VALUES (:user_id, :name, :amount, :frequency, :interval_count, :next_due_date, :direct_debit, :account_id, :source_account_text, :category, :expense_type, :owner_group, :is_active, :variable_amount, :aliases, :notes, :last_paid_date, 'manual', :now, :now)
+        """),
+        {
+            "user_id": user.id,
+            "name": payload.name,
+            "amount": _c(payload.amount),
+            "frequency": payload.frequency,
+            "interval_count": payload.interval_count,
+            "next_due_date": payload.next_due_date,
+            "direct_debit": payload.direct_debit,
+            "account_id": payload.account_id,
+            "source_account_text": payload.source_account_text,
+            "category": payload.category,
+            "expense_type": payload.expense_type,
+            "owner_group": payload.owner_group,
+            "is_active": payload.is_active,
+            "variable_amount": payload.variable_amount,
+            "aliases": payload.aliases,
+            "notes": payload.notes,
+            "last_paid_date": payload.last_paid_date,
+            "now": utcnow(),
+        },
+    )
+    row = db.execute(text("SELECT * FROM recurring_expenses WHERE id = last_insert_rowid()")).first()
     db.commit()
-    return list_recurring(db, user)[0]
+    return recurring_response(row)
 
 
 def list_bills(db: DbSession, user: User, filter_value: str = "all") -> list[dict]:
@@ -247,10 +372,29 @@ def create_bill(db: DbSession, user: User, payload) -> dict:
     if priority not in BILL_PRIORITIES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid priority")
     amount = _c(payload.amount)
-    db.execute(text("""INSERT INTO bills (user_id, recurring_expense_id, name, provider, bill_type, priority, original_amount_cents, remaining_amount_cents, due_date, account_id, paid_through_date, notes, is_active, source, created_at, updated_at)
-        VALUES (:user_id, :recurring_id, :name, :provider, :bill_type, :priority, :amount, :amount, :due_date, :account_id, :paid_through_date, :notes, 1, 'manual', :now, :now)"""), {"user_id": user.id, "recurring_id": payload.recurring_expense_id, "name": payload.name, "provider": payload.provider, "bill_type": payload.bill_type, "priority": priority, "amount": amount, "due_date": payload.due_date, "account_id": payload.account_id, "paid_through_date": payload.paid_through_date, "notes": payload.notes, "now": utcnow()})
+    db.execute(
+        text("""
+            INSERT INTO bills (user_id, recurring_expense_id, name, provider, bill_type, priority, original_amount_cents, remaining_amount_cents, due_date, account_id, paid_through_date, notes, is_active, source, created_at, updated_at)
+            VALUES (:user_id, :recurring_id, :name, :provider, :bill_type, :priority, :amount, :amount, :due_date, :account_id, :paid_through_date, :notes, 1, 'manual', :now, :now)
+        """),
+        {
+            "user_id": user.id,
+            "recurring_id": payload.recurring_expense_id,
+            "name": payload.name,
+            "provider": payload.provider,
+            "bill_type": payload.bill_type,
+            "priority": priority,
+            "amount": amount,
+            "due_date": payload.due_date,
+            "account_id": payload.account_id,
+            "paid_through_date": payload.paid_through_date,
+            "notes": payload.notes,
+            "now": utcnow(),
+        },
+    )
+    row = db.execute(text("SELECT * FROM bills WHERE id = last_insert_rowid()")).first()
     db.commit()
-    return list_bills(db, user)[0]
+    return bill_response(row)
 
 
 def schedule_events(db: DbSession, user: User, start: date, end: date) -> list[dict]:
@@ -262,7 +406,16 @@ def schedule_events(db: DbSession, user: User, start: date, end: date) -> list[d
         events.extend(occurrences(row.next_due_date, end, row.amount_cents, row.frequency, row.name, "recurring_expense", {"category": row.category or "Miscellaneous", "provider": row.expense_type, "account": row.source_account_text, "range_start": start}, row.interval_count))
     for row in db.execute(text("SELECT * FROM bills WHERE user_id = :user_id AND is_active = 1"), {"user_id": user.id}).all():
         if row.due_date and row.remaining_amount_cents is not None and row.due_date <= end:
-            events.append({"date": row.due_date.isoformat(), "name": row.name, "amount_cents": row.remaining_amount_cents, "amount": cents_to_decimal(row.remaining_amount_cents), "kind": "bill", "category": row.bill_type or "Financial Obligations", "provider": row.provider, "status": bill_status(row.due_date, row.paid_at, row.resolved_at, row.remaining_amount_cents)})
+            events.append({
+                "date": row.due_date.isoformat(),
+                "name": row.name,
+                "amount_cents": row.remaining_amount_cents,
+                "amount": cents_to_decimal(row.remaining_amount_cents),
+                "kind": "bill",
+                "category": row.bill_type or "Financial Obligations",
+                "provider": row.provider,
+                "status": bill_status(row.due_date, row.paid_at, row.resolved_at, row.remaining_amount_cents),
+            })
     return sorted(events, key=lambda item: (item["date"], item["kind"], item["name"]))
 
 
@@ -270,7 +423,14 @@ def schedule_summary(db: DbSession, user: User, start: date, end: date) -> dict:
     events = schedule_events(db, user, start, end)
     income = sum(item["amount_cents"] for item in events if item["kind"] == "income")
     commitments = sum(item["amount_cents"] for item in events if item["kind"] != "income")
-    return {"start": start.isoformat(), "end": end.isoformat(), "income": cents_to_decimal(income), "commitments": cents_to_decimal(commitments), "net": cents_to_decimal(income - commitments), "events": [{k: v for k, v in item.items() if k != "amount_cents"} for item in events]}
+    return {
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "income": cents_to_decimal(income),
+        "commitments": cents_to_decimal(commitments),
+        "net": cents_to_decimal(income - commitments),
+        "events": [{k: v for k, v in item.items() if k != "amount_cents"} for item in events],
+    }
 
 
 def annual_matrix(db: DbSession, user: User, year: int) -> dict:
@@ -284,4 +444,15 @@ def annual_matrix(db: DbSession, user: User, year: int) -> dict:
         row["months"][month]["total_cents"] += signed
         row["months"][month]["items"].append({k: v for k, v in item.items() if k != "amount_cents"})
         row["total_cents"] += signed
-    return {"year": year, "rows": [{"category": row["category"], "item": row["item"], "months": {str(m): {"total": cents_to_decimal(data["total_cents"]), "items": data["items"]} for m, data in row["months"].items()}, "total": cents_to_decimal(row["total_cents"])} for row in rows.values()]}
+    return {
+        "year": year,
+        "rows": [
+            {
+                "category": row["category"],
+                "item": row["item"],
+                "months": {str(m): {"total": cents_to_decimal(data["total_cents"]), "items": data["items"]} for m, data in row["months"].items()},
+                "total": cents_to_decimal(row["total_cents"]),
+            }
+            for row in rows.values()
+        ],
+    }
