@@ -67,7 +67,7 @@ def test_budget_create_update_history_and_analysis(client):
         assert budget["amount"] == "1000.00"
         updated = update_budget(db, user, budget["id"], {"amount": "1100", "effective_from": "2026-10-01"})
         assert updated["amount"] == "1100.00"
-        db.execute(text("INSERT INTO accounts (user_id,name,account_type,opening_balance_cents,created_at,updated_at) VALUES (:user_id,'Everyday','transaction',0,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"), {"user_id": user.id})
+        db.execute(text("INSERT INTO accounts (user_id,name,account_type,opening_balance_cents,is_active,created_at,updated_at) VALUES (:user_id,'Everyday','transaction',0,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"), {"user_id": user.id})
         account_id = db.execute(text("SELECT id FROM accounts WHERE user_id=:user_id AND name='Everyday'"), {"user_id": user.id}).scalar()
         db.execute(text("INSERT INTO transactions (user_id,account_id,transaction_date,amount_cents,transaction_type,description,category,source,created_at,updated_at) VALUES (:user_id,:account_id,'2026-08-10',68400,'expense','Supermarket','Groceries','manual',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"), {"user_id": user.id, "account_id": account_id})
         db.commit()
@@ -98,7 +98,7 @@ def test_saved_view_preferences_persist_and_reset(client):
 def test_unbudgeted_category_detection(client):
     db, user = setup_user(client)
     try:
-        db.execute(text("INSERT INTO accounts (user_id,name,account_type,opening_balance_cents,created_at,updated_at) VALUES (:user_id,'Everyday','transaction',0,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"), {"user_id": user.id})
+        db.execute(text("INSERT INTO accounts (user_id,name,account_type,opening_balance_cents,is_active,created_at,updated_at) VALUES (:user_id,'Everyday','transaction',0,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"), {"user_id": user.id})
         account_id = db.execute(text("SELECT id FROM accounts WHERE user_id=:user_id AND name='Everyday'"), {"user_id": user.id}).scalar()
         db.execute(text("INSERT INTO transactions (user_id,account_id,transaction_date,amount_cents,transaction_type,description,category,source,created_at,updated_at) VALUES (:user_id,:account_id,'2026-08-10',19600,'expense','Cafe','Dining Out','manual',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"), {"user_id": user.id, "account_id": account_id})
         db.commit()
