@@ -1,4 +1,5 @@
 from datetime import timedelta
+
 from fastapi import Cookie, Depends, HTTPException, Request, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
@@ -6,7 +7,17 @@ from sqlalchemy.orm import Session as DbSession
 from .config import get_settings
 from .database import get_db
 from .models import LoginAttempt, Session, User
-from .security import expiry_from_now, hash_password, hash_token, new_session_token, utcnow, verify_password
+from .security import (
+    expiry_from_now,
+    hash_password,
+    hash_token,
+    new_session_token,
+    utcnow,
+    verify_password,
+)
+
+DB_DEPENDENCY = Depends(get_db)
+SESSION_COOKIE = Cookie(default=None, alias="fynvo_session")
 
 
 def get_client_key(request: Request) -> str:
@@ -90,8 +101,8 @@ def clear_session_cookie(response: Response) -> None:
 
 def get_current_user(
     response: Response,
-    db: DbSession = Depends(get_db),
-    session_token: str | None = Cookie(default=None, alias="fynvo_session"),
+    db: DbSession = DB_DEPENDENCY,
+    session_token: str | None = SESSION_COOKIE,
 ) -> User:
     if not session_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
