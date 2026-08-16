@@ -21,7 +21,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand">BudgetHub</div>
+        <div className="brand">Fynvo</div>
         <nav>
           {navigation.map((item, index) => (
             <button className={index === 0 ? 'nav-item active' : 'nav-item'} key={item}>
@@ -35,8 +35,8 @@ export default function App() {
         <header className="page-header">
           <div>
             <p className="eyebrow">Financial overview</p>
-            <h1>BudgetHub</h1>
-            <p className="muted">Your household cash-flow forecast will appear here.</p>
+            <h1>Fynvo</h1>
+            <p className="muted">Know what's coming.</p>
           </div>
           <select defaultValue="90">
             <option value="30">Next 30 days</option>

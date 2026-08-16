@@ -9,7 +9,7 @@ RUN pip install --no-cache-dir -r /app/backend/requirements.txt
 COPY backend /app/backend
 
 ENV PYTHONUNBUFFERED=1
-ENV BUDGETHUB_DATA_DIR=/data
+ENV FYNVO_DATA_DIR=/data
 
 EXPOSE 8097
 
