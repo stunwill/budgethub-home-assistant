@@ -2,6 +2,39 @@
 
 All notable Fynvo changes are documented here. Starting with v0.3.0, every release must include a user-readable changelog entry, Home Assistant-visible release notes and GitHub release notes.
 
+## v0.11.0
+
+### Added
+- Added first-class Financial Goals for savings, target balances, planned purchases, annual goals and debt-reduction targets.
+- Added Goal creation, editing, completion and cancellation APIs.
+- Added Goal progress with target, current, remaining, percentage complete, required contribution, current contribution and forecast completion date.
+- Added weekly, true fortnightly and monthly contribution calculations.
+- Added account allocations so one savings balance is not double-counted across multiple Goals.
+- Added manual Goal contribution tracking.
+- Added unallocated savings reporting by account.
+- Added Goal to Planned Spending link foundation.
+- Added Goal What-If contribution calculation with temporary forecast impact.
+- Added a command-centre dashboard API for KPI cards, forecast summary, commitments, planned spending, budget snippets, goals and intelligence attention counts.
+- Added a first-class Goals navigation destination and responsive Goals UI.
+
+### Changed
+- Redesigned the Overview dashboard to more closely match the supplied Fynvo dashboard mock-up.
+- Replaced development-oriented Overview panels with household financial information.
+- Added the five-card dashboard KPI row: Available Cash, Expected Income, Scheduled Commitments, Planned Spending and Projected Balance.
+- Added a Cash Flow Forecast chart and Forecast Summary card to the Overview.
+- Added Upcoming Commitments, Upcoming events, Top Planned Spending, Quick Stats, Budget Overview, Goals and Spending Intelligence attention cards.
+- Improved Quick Add with type-specific forms and clearer backend validation errors.
+- Updated version references to v0.11.0.
+
+### Fixed
+- Removed generic dashboard pending states where the data is simply empty.
+- Reduced excessive unused Overview whitespace by using a denser responsive card layout.
+
+### Deferred
+- Full Scenario Intelligence remains planned for v0.13.0.
+- Broader financial-health Insights remain planned for v0.14.0.
+- Home Assistant entities for Goals remain planned for v0.15.0.
+
 ## v0.10.0
 
 ### Added
@@ -64,30 +97,3 @@ All notable Fynvo changes are documented here. Starting with v0.3.0, every relea
 ### Deferred
 - Advanced rule learning, anomaly detection and recurring-payment discovery remain planned for v0.10.0 Spending Intelligence.
 - Full Open Banking/CDR import remains planned for v0.12.0.
-
-## v0.8.0
-
-### Added
-- Added Advanced Budgeting foundations as a first-class domain.
-- Added expense and income budget/target support.
-- Added weekly, true fortnightly, monthly, quarterly and annual budget periods.
-- Added annual allocation strategies for weekly, fortnightly and monthly equivalents while retaining the true annual limit.
-- Added category hierarchy foundations with safe parent/child relationships and cycle prevention.
-- Added parent/child budget modes: Independent, Shared Parent Pool and Parent Equals Sum of Children.
-- Added budget analysis for Budget vs Actual vs Committed vs Planned vs Forecast.
-- Added current remaining, projected remaining, projected variance, utilisation and period-progress metrics.
-- Added rollover fields that keep base budget, rollover and effective available budget separate.
-- Added unbudgeted category detection with historical-average foundations.
-- Added Saved Views / View Preferences storage for table layouts, sorting, filters, account/category selections and future reporting views.
-- Added Reset View support.
-- Added budgeting documentation and v0.8.0 release notes.
-
-### Changed
-- Updated Fynvo version references to v0.8.0.
-- Updated Home Assistant add-on metadata to include budgeting.
-- Updated the roadmap to keep v0.9.0 CSV Import & Reconciliation as the next release.
-
-### Deferred
-- Full visual drag-and-drop column configuration and report export remain future UI refinements.
-- CSV import and reconciliation remain planned for v0.9.0.
-- Full Home Assistant budget sensors remain planned for v0.15.0.
