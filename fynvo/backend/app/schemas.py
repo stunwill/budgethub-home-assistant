@@ -42,6 +42,9 @@ class DashboardSummary(BaseModel):
     assets: str = "0.00"
     liabilities: str = "0.00"
     account_count: int = 0
+    overdue_amount: str = "0.00"
+    incomplete_recurring_count: int = 0
+    bills_due_count: int = 0
     currency: str = "AUD"
     range_days: int = 90
 
@@ -120,4 +123,51 @@ class TransferUpdate(BaseModel):
     date: DateType | None = None
     amount: str | None = None
     description: str | None = Field(default=None, min_length=1, max_length=180)
+    notes: str | None = None
+
+
+class IncomeCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=140)
+    amount: str | None = None
+    frequency: str | None = None
+    interval_count: int | None = None
+    next_payment_date: DateType | None = None
+    destination_account_id: int | None = None
+    payer: str | None = Field(default=None, max_length=140)
+    category: str | None = Field(default=None, max_length=80)
+    is_active: bool = True
+    start_date: DateType | None = None
+    end_date: DateType | None = None
+    notes: str | None = None
+
+
+class RecurringExpenseCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=140)
+    amount: str | None = None
+    frequency: str | None = None
+    interval_count: int | None = None
+    next_due_date: DateType | None = None
+    direct_debit: bool | None = None
+    account_id: int | None = None
+    source_account_text: str | None = Field(default=None, max_length=140)
+    category: str | None = Field(default=None, max_length=80)
+    expense_type: str | None = Field(default=None, max_length=80)
+    owner_group: str | None = Field(default=None, max_length=80)
+    is_active: bool = True
+    variable_amount: bool = False
+    aliases: str | None = None
+    notes: str | None = None
+    last_paid_date: DateType | None = None
+
+
+class BillCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=140)
+    provider: str | None = Field(default=None, max_length=140)
+    bill_type: str | None = Field(default=None, max_length=80)
+    priority: str = "normal"
+    amount: str | None = None
+    due_date: DateType | None = None
+    account_id: int | None = None
+    paid_through_date: DateType | None = None
+    recurring_expense_id: int | None = None
     notes: str | None = None
