@@ -1,5 +1,21 @@
 # Fynvo Add-on Changelog
 
+## v0.9.0
+
+### Added
+- Editing for existing Accounts, Transactions, Categories, Bills, Recurring Expenses, Income, Planned Spending and Budgets.
+- CSV bank transaction import with Australian date support.
+- Column mapping, import preview, duplicate detection and validation.
+- Reconciliation review queue for matching imported Actuals to Bills, Recurring Expenses and Planned Spending.
+- Import history and import-batch tracking.
+
+### Changed
+- Version updated to 0.9.0.
+- Financial list screens now expose clear Edit actions.
+
+### Fixed
+- Completed the missing v0.8.0 record-editing requirement.
+
 ## v0.8.0
 
 ### Added
@@ -30,30 +46,3 @@
 ### Changed
 - Version updated to 0.7.0.
 - Navigation reorganised into Core, Analysis and Settings groups.
-
-## v0.6.0
-
-### Added
-- Cash-flow forecast engine.
-- Baseline and Expected forecasts.
-- Effective-dated amount changes for income and recurring expenses.
-- Forecast timeline, chart data, lowest balance and shortfall detection.
-- Scenario comparison API.
-- Dashboard 30-day forecast summary.
-
-### Changed
-- Version updated to 0.6.0.
-- Forecasting concepts documented for Home Assistant users.
-
-## v0.5.0
-
-### Added
-- Planned Spending management.
-- Forecast inclusion/exclusion for planned items.
-- Enhanced Month weekly matrix.
-- Fynvo logo and favicon assets.
-
-## v0.4.0
-
-### Added
-- Income, recurring expenses, bills, overdue tracking and schedule views.
