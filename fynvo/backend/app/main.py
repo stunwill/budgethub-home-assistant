@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session as DbSession
 
-from . import v09
+from . import intelligence, v09
 from .auth import (
     SESSION_COOKIE,
     authenticate_user,
@@ -99,6 +99,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Fynvo API", version=APP_VERSION, description="Fynvo household cash-flow forecasting API.", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=[], allow_credentials=True, allow_methods=["GET", "POST", "PUT", "DELETE"], allow_headers=["Content-Type"])
 app.include_router(v09.router)
+app.include_router(intelligence.router)
 
 
 def public_user(user: User) -> UserResponse:
