@@ -2,6 +2,37 @@
 
 All notable Fynvo changes are documented here. Starting with v0.3.0, every release must include a user-readable changelog entry, Home Assistant-visible release notes and GitHub release notes.
 
+## v0.10.0
+
+### Added
+- Added Spending Intelligence as a local, explainable transaction-analysis capability.
+- Added merchant/payee normalisation while preserving original bank descriptions.
+- Added user-managed merchant normalisation rules.
+- Added user-managed categorisation rules with preview and historical application.
+- Added category suggestions with confidence and supporting evidence.
+- Added recurring expense detection across common cadences.
+- Added recurring income detection while keeping transfers separate from ordinary income.
+- Added recurring amount-change suggestions for increases and decreases.
+- Added Spending Intelligence review queue with accept and dismiss workflows.
+- Added category spending trend analysis using comparable 8-week periods.
+- Added unusual-spending detection with baseline, current amount and percentage explanation.
+- Added one-off baseline exclusion support.
+- Added merchant summary/detail foundations for future Insights.
+
+### Changed
+- Updated version references to v0.10.0.
+- Added a source-independent intelligence pipeline for manual transactions, CSV imports and future CDR/Open Banking transactions.
+- Kept detected recurring items out of committed forecasts until accepted by the user.
+
+### Security and privacy
+- Spending Intelligence operates locally on the user's own Fynvo data.
+- No transaction history is sent to external AI or analytics services.
+- Regex rules are validated before use.
+
+### Deferred
+- Broader financial-health insights remain planned for v0.14.0.
+- Australian Open Banking/CDR remains planned for v0.12.0.
+
 ## v0.9.0
 
 ### Added

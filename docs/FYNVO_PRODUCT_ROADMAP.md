@@ -14,6 +14,7 @@ This roadmap is the canonical development queue for Fynvo. Future development sh
 8. Make Budget, Actual, Committed, Planned, Forecast and Scenario explicit in budget analysis.
 9. Make financial records maintainable after creation.
 10. Feed Manual Entry, CSV Import and future CDR/Open Banking into one Actual transaction pipeline.
+11. Keep spending intelligence local, explainable and user-controlled.
 
 ## Core product concepts
 
@@ -135,7 +136,7 @@ Deferred from v0.8.0 and corrected in v0.9.0:
 
 ### v0.9.0 - Editing, CSV Import & Reconciliation
 
-Status: Implemented in the v0.9.0 development PR.
+Status: Completed.
 
 Delivered scope:
 - full record editing for Accounts, Transactions, Categories, Bills, Recurring Expenses, Income, Planned Spending and Budgets;
@@ -161,13 +162,26 @@ Delivered scope:
 
 ### v0.10.0 - Spending Intelligence
 
-Planned scope:
-- recurring-payment detection;
-- merchant normalisation;
-- categorisation rules;
-- spending trends;
-- anomaly detection;
-- rule learning from accepted import/reconciliation decisions.
+Status: Implemented in the v0.10.0 development PR.
+
+Delivered scope:
+- reusable source-independent spending intelligence service;
+- merchant/payee normalisation while preserving original descriptions;
+- user-managed merchant rules;
+- user-managed categorisation rules;
+- rule preview and safe historical rule application;
+- category suggestions with confidence and evidence;
+- Spending Intelligence review queue;
+- recurring expense detection;
+- recurring income detection;
+- recurring amount-change detection for increases and decreases;
+- accepted recurring detections create confirmed recurring records;
+- accepted amount changes use effective-dated change records where a matching record exists;
+- category spending trend analysis;
+- unusual-spending detection;
+- one-off baseline exclusion;
+- merchant summary foundations;
+- local deterministic privacy-preserving analysis for future CDR/Open Banking, Goals, Scenarios and Insights.
 
 ### v0.11.0 - Goals & Financial Planning
 

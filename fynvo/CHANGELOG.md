@@ -1,5 +1,21 @@
 # Fynvo Add-on Changelog
 
+## v0.10.0
+
+### Added
+- Spending Intelligence review queue.
+- Merchant/payee normalisation.
+- Merchant and categorisation rules.
+- Category suggestions with confidence and evidence.
+- Recurring expense and income detection.
+- Recurring amount-change detection.
+- Spending trends and unusual-spending detection.
+- One-off baseline exclusion support.
+
+### Changed
+- Version updated to 0.10.0.
+- Spending intelligence is local, deterministic and user-controlled.
+
 ## v0.9.0
 
 ### Added
