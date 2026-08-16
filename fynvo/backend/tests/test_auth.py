@@ -1,11 +1,11 @@
 from app.security import hash_password, verify_password
 
 
-def test_health_endpoint_reports_v030(client):
+def test_health_endpoint_reports_v040(client):
     response = client.get("/api/health")
     assert response.status_code == 200
     assert response.json()["service"] == "Fynvo"
-    assert response.json()["version"] == "0.3.0"
+    assert response.json()["version"] == "0.4.0"
 
 
 def test_password_hashing_does_not_store_plaintext():
@@ -27,6 +27,7 @@ def test_setup_login_protected_dashboard_logout_flow(client):
     dashboard = client.get("/api/dashboard/overview")
     assert dashboard.status_code == 200
     assert dashboard.json()["summary"]["currency"] == "AUD"
+    assert "incomplete_recurring_count" in dashboard.json()["summary"]
 
     logout = client.post("/api/auth/logout")
     assert logout.status_code == 200
