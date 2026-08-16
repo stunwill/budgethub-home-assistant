@@ -1,6 +1,6 @@
-# BudgetHub Product Roadmap
+# Fynvo Product Roadmap
 
-This roadmap is the canonical development queue for BudgetHub.
+This roadmap is the canonical development queue for Fynvo.
 
 ## Product principles
 
@@ -14,7 +14,7 @@ This roadmap is the canonical development queue for BudgetHub.
 ## v0.1.0 - Foundation
 
 ### Application foundation
-- [ ] Home Assistant add-on packaging
+- [ ] Home Assistant app packaging
 - [ ] FastAPI backend
 - [ ] React/Vite frontend
 - [ ] SQLite persistence under `/data`
@@ -108,7 +108,7 @@ This roadmap is the canonical development queue for BudgetHub.
 ## Future integrations
 - [ ] Google Sheets export
 - [ ] Optional transaction import integrations
-- [ ] Home Assistant sensors for key BudgetHub metrics
+- [ ] Home Assistant sensors for key Fynvo metrics
 - [ ] Notifications for upcoming large expenses
 - [ ] Integration with household spending tracking
 

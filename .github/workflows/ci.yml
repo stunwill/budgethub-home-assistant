@@ -24,22 +24,22 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: budgethub/backend/requirements.txt
+          cache-dependency-path: fynvo/backend/requirements.txt
 
       - name: Install backend dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r budgethub/backend/requirements.txt
+          pip install -r fynvo/backend/requirements.txt
           pip install ruff
 
       - name: Compile Python sources
-        run: python -m compileall budgethub/backend/app
+        run: python -m compileall fynvo/backend/app
 
       - name: Ruff lint
-        run: ruff check budgethub/backend/app
+        run: ruff check fynvo/backend/app
 
       - name: Import application
-        run: PYTHONPATH=budgethub/backend python -c "from app.main import app; print(app.title)"
+        run: PYTHONPATH=fynvo/backend python -c "from app.main import app; print(app.title)"
 
   frontend:
     name: Frontend checks
@@ -54,21 +54,21 @@ jobs:
           node-version: "22"
 
       - name: Install frontend dependencies
-        working-directory: budgethub/frontend
+        working-directory: fynvo/frontend
         run: npm install
 
       - name: Build frontend
-        working-directory: budgethub/frontend
+        working-directory: fynvo/frontend
         run: npm run build
 
   addon:
-    name: Home Assistant app checks
+    name: Home Assistant add-on checks
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate repository and app YAML
+      - name: Validate YAML
         run: |
           python -m pip install --upgrade pip
           pip install pyyaml
@@ -76,11 +76,7 @@ jobs:
           from pathlib import Path
           import yaml
 
-          for path in (
-              Path("repository.yaml"),
-              Path("budgethub/config.yaml"),
-              Path("budgethub/build.yaml"),
-          ):
+          for path in (Path("repository.yaml"), Path("fynvo/config.yaml"), Path("fynvo/build.yaml")):
               with path.open("r", encoding="utf-8") as handle:
                   yaml.safe_load(handle)
               print(f"Validated {path}")
@@ -91,7 +87,7 @@ jobs:
           python - <<'PY'
           import yaml
 
-          with open("budgethub/config.yaml", "r", encoding="utf-8") as handle:
+          with open("fynvo/config.yaml", "r", encoding="utf-8") as handle:
               config = yaml.safe_load(handle)
 
           required = ["name", "version", "slug", "description", "arch", "startup", "boot"]
@@ -99,12 +95,12 @@ jobs:
           if missing:
               raise SystemExit(f"Missing required config.yaml keys: {', '.join(missing)}")
 
-          if config.get("slug") != "budgethub":
-              raise SystemExit("budgethub/config.yaml slug must be 'budgethub'")
+          if config.get("slug") != "fynvo":
+              raise SystemExit("config.yaml slug must be 'fynvo'")
 
           print("Home Assistant app metadata looks valid")
           PY
 
       - name: Build Docker image
-        working-directory: budgethub
-        run: docker build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.20 -t budgethub-ci .
+        working-directory: fynvo
+        run: docker build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.20 -t fynvo-ci .

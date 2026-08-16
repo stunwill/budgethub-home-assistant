@@ -1,10 +1,12 @@
-# BudgetHub
+# Fynvo
 
-BudgetHub is a Home Assistant add-on for household budgeting, recurring expenses, recurring income, planned purchases and forward cash-flow forecasting.
+Fynvo is a Home Assistant app for household cash-flow forecasting, recurring expenses, recurring income, planned purchases and forward financial planning.
+
+**Know what's coming.**
 
 ## Goals
 
-BudgetHub is designed to answer practical household finance questions such as:
+Fynvo is designed to answer practical household finance questions such as:
 
 - What bills are coming up?
 - When is the next salary payment?
@@ -33,12 +35,12 @@ Bank feeds and Google Sheets are intentionally outside the initial release.
 - FastAPI backend
 - React/Vite frontend
 - SQLite database stored under `/data`
-- Docker-based Home Assistant add-on
+- Docker-based Home Assistant app
 - Home Assistant Ingress UI
 
 ## Roadmap
 
-See [`docs/BUDGETHUB_PRODUCT_ROADMAP.md`](docs/BUDGETHUB_PRODUCT_ROADMAP.md).
+See [`docs/FYNVO_PRODUCT_ROADMAP.md`](docs/FYNVO_PRODUCT_ROADMAP.md).
 
 ## Status
 
