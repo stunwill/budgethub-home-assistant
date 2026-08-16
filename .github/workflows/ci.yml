@@ -24,22 +24,22 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: budgethub/backend/requirements.txt
 
       - name: Install backend dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r backend/requirements.txt
+          pip install -r budgethub/backend/requirements.txt
           pip install ruff
 
       - name: Compile Python sources
-        run: python -m compileall backend/app
+        run: python -m compileall budgethub/backend/app
 
       - name: Ruff lint
-        run: ruff check backend/app
+        run: ruff check budgethub/backend/app
 
       - name: Import application
-        run: PYTHONPATH=backend python -c "from app.main import app; print(app.title)"
+        run: PYTHONPATH=budgethub/backend python -c "from app.main import app; print(app.title)"
 
   frontend:
     name: Frontend checks
@@ -54,21 +54,21 @@ jobs:
           node-version: "22"
 
       - name: Install frontend dependencies
-        working-directory: frontend
+        working-directory: budgethub/frontend
         run: npm install
 
       - name: Build frontend
-        working-directory: frontend
+        working-directory: budgethub/frontend
         run: npm run build
 
   addon:
-    name: Home Assistant add-on checks
+    name: Home Assistant app checks
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate YAML
+      - name: Validate repository and app YAML
         run: |
           python -m pip install --upgrade pip
           pip install pyyaml
@@ -76,18 +76,22 @@ jobs:
           from pathlib import Path
           import yaml
 
-          for path in (Path("config.yaml"), Path("build.yaml")):
+          for path in (
+              Path("repository.yaml"),
+              Path("budgethub/config.yaml"),
+              Path("budgethub/build.yaml"),
+          ):
               with path.open("r", encoding="utf-8") as handle:
                   yaml.safe_load(handle)
               print(f"Validated {path}")
           PY
 
-      - name: Validate required add-on metadata
+      - name: Validate required app metadata
         run: |
           python - <<'PY'
           import yaml
 
-          with open("config.yaml", "r", encoding="utf-8") as handle:
+          with open("budgethub/config.yaml", "r", encoding="utf-8") as handle:
               config = yaml.safe_load(handle)
 
           required = ["name", "version", "slug", "description", "arch", "startup", "boot"]
@@ -96,10 +100,11 @@ jobs:
               raise SystemExit(f"Missing required config.yaml keys: {', '.join(missing)}")
 
           if config.get("slug") != "budgethub":
-              raise SystemExit("config.yaml slug must be 'budgethub'")
+              raise SystemExit("budgethub/config.yaml slug must be 'budgethub'")
 
-          print("Home Assistant add-on metadata looks valid")
+          print("Home Assistant app metadata looks valid")
           PY
 
       - name: Build Docker image
+        working-directory: budgethub
         run: docker build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.20 -t budgethub-ci .
