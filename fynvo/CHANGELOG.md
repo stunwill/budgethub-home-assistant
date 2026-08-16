@@ -1,5 +1,24 @@
 # Fynvo Add-on Changelog
 
+## v0.11.0
+
+### Added
+- First-class Financial Goals.
+- Goal creation, editing, completion and cancellation.
+- Goal progress, required contribution and forecast completion calculations.
+- Weekly, true fortnightly and monthly contribution support.
+- Goal account allocations and unallocated savings reporting.
+- Goal contribution tracking.
+- Goal What-If contribution calculations.
+- Goal and Planned Spending link foundation.
+- Redesigned Overview dashboard aligned to the Fynvo dashboard mock-up.
+- Dashboard KPI row, Cash Flow Forecast chart, Forecast Summary, Upcoming Commitments, Quick Stats, Budget Overview and Goals summary.
+
+### Changed
+- Version updated to 0.11.0.
+- The Overview dashboard now prioritises household financial information instead of development-status cards.
+- Quick Add has clearer type-specific forms and validation messages.
+
 ## v0.10.0
 
 ### Added
@@ -31,34 +50,3 @@
 
 ### Fixed
 - Completed the missing v0.8.0 record-editing requirement.
-
-## v0.8.0
-
-### Added
-- Advanced Budgeting foundations.
-- Expense and income budget/target support.
-- Weekly, fortnightly, monthly, quarterly and annual budget periods.
-- Category hierarchy foundation.
-- Parent/child budget modes.
-- Budget vs Actual vs Committed vs Planned vs Forecast analysis foundation.
-- Rollover-aware budget calculations.
-- Unbudgeted category detection.
-- Saved Views / View Preferences foundation.
-
-### Changed
-- Version updated to 0.8.0.
-- Home Assistant add-on metadata now includes budgeting.
-
-## v0.7.0
-
-### Added
-- Redesigned Fynvo interface with the new dark sidebar, modern dashboard cards and responsive layout.
-- Unified Financial Calendar with Day, Week and Month views.
-- Cash Flow dashboard chart using Baseline and Expected forecasts.
-- Event drill-down for calendar and cash-flow records.
-- Quick Add for common financial records.
-- Category visibility foundation across Fynvo modules.
-
-### Changed
-- Version updated to 0.7.0.
-- Navigation reorganised into Core, Analysis and Settings groups.
