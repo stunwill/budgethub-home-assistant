@@ -12,35 +12,8 @@ This roadmap is the canonical development queue for Fynvo. Future development sh
 6. Support Australian household finance first while allowing later internationalisation.
 7. Maintain a cohesive Fynvo visual and navigation system across future modules.
 8. Make Budget, Actual, Committed, Planned, Forecast and Scenario explicit in budget analysis.
-
-## Long-term product direction
-
-Fynvo should answer:
-
-- Where did my money go?
-- What have I committed to?
-- What am I planning to spend?
-- What am I allowed to spend?
-- What is likely to happen?
-- What happens if something changes?
-- Where will my finances be next week, next month and at the end of the year?
-
-This mix of historical tracking, commitments, planning, budgeting, scenarios and forecasting is the defining product direction.
-
-## Competitive analysis themes
-
-Reviews of PocketSmith, YNAB, Frollo, WeMoney, Buxfer and Moneysoft highlighted useful future capabilities:
-
-- daily cash-flow forecasting, calendar views and scenario planning;
-- target-based budgeting, goals and sinking funds;
-- Australian Open Banking/CDR account aggregation;
-- recurring bills, subscriptions and payment reminders;
-- transaction categorisation rules and merchant normalisation;
-- cash-flow, budget-vs-actual and net-worth reporting;
-- forecast shortfall and low-balance warnings;
-- category spending trends and forecast accuracy tracking.
-
-Fynvo should learn from these capabilities while preserving its own model: Actual, Committed, Planned, Budget, Forecast and Scenario remain distinct.
+9. Make financial records maintainable after creation.
+10. Feed Manual Entry, CSV Import and future CDR/Open Banking into one Actual transaction pipeline.
 
 ## Core product concepts
 
@@ -66,7 +39,7 @@ A temporary or saved what-if view of what would happen if circumstances changed.
 
 Every release must include a version bump, database migrations where required, automated tests, CI validation, a CHANGELOG entry, Home Assistant release notes, GitHub release notes and user-readable release notes.
 
-Home Assistant ingress access, login and protected APIs are release blockers.
+Home Assistant ingress access, login, protected APIs and record-edit persistence are release blockers.
 
 ## Release plan
 
@@ -115,10 +88,7 @@ Delivered scope:
 - Planned Spending records;
 - statuses: Idea, Wishlist, Planned, Committed, Purchased and Cancelled;
 - forecast inclusion/exclusion;
-- incomplete planned-spending records;
 - planned spending integration with Overview, Week, Month, Pay Cycle and Year views;
-- enhanced Month view broken into Monday-Sunday weekly columns;
-- clickable weekly, monthly and annual totals;
 - canonical Fynvo branding assets.
 
 ### v0.6.0 - Cash Flow Forecasting & Financial Scenarios
@@ -127,137 +97,123 @@ Status: Completed.
 
 Delivered scope:
 - reusable cash-flow forecast engine;
-- baseline forecast from current balances, income, recurring expenses, bills and Planned Spending;
-- expected forecast with conservative historical run-rate estimates;
+- baseline and expected forecasts;
 - projected balance timeline;
-- lowest forecast balance;
-- projected shortfall detection;
-- effective-dated amount changes for recurring income and recurring expenses;
-- forecast chart data;
-- forecast drill-down API;
-- lightweight what-if scenario comparisons without mutating real records;
-- dashboard forecast summary;
-- documentation for Actual, Committed, Planned, Budget and Forecast.
+- lowest balance and shortfall detection;
+- effective-dated amount changes;
+- scenario comparisons without mutating real records.
 
 ### v0.7.0 - Financial Calendar & Category Management
 
 Status: Completed.
 
 Delivered scope:
-- modern Fynvo dashboard based on the approved visual mock-up;
-- dark navy sidebar and grouped navigation;
-- reusable design-system foundation for cards, badges, modals, tables, charts, calendar events, alerts and responsive layout;
-- unified Financial Calendar with day, week and month views;
-- calendar events generated from the v0.6.0 forecast engine so income, recurring expenses, bills, Planned Spending and effective-dated changes stay consistent with Cash Flow;
-- financial event drill-down;
-- Cash Flow view with forecast chart and chronological timeline;
-- Quick Add entry point for common financial records;
-- category visibility foundation across transactions, income, recurring expenses, bills and Planned Spending;
-- future navigation locations for Budgeting, Reports, Insights and Scenarios without fake functionality.
+- redesigned Fynvo interface;
+- unified Financial Calendar;
+- Cash Flow view;
+- Quick Add;
+- category visibility foundation.
 
 ### v0.8.0 - Advanced Budgeting
 
-Status: Implemented in the v0.8.0 development PR.
+Status: Completed.
 
 Delivered scope:
 - first-class Budget domain model;
 - expense budgets and income budget/target foundations;
 - weekly, true fortnightly, monthly, quarterly and annual periods;
-- annual allocation strategies for weekly, fortnightly and monthly equivalents;
-- base budget, rollover and effective available budget kept separate;
-- category hierarchy foundation with safe parent/child re-parenting and cycle prevention;
-- budget relationship modes: Independent, Shared Parent Pool and Parent Equals Sum of Children;
+- annual allocation strategies;
+- base budget, rollover and effective available budget separated;
+- category hierarchy foundation;
+- Independent, Shared Parent Pool and Parent Equals Sum of Children budget modes;
 - Budget vs Actual vs Committed vs Planned vs Forecast analysis foundation;
-- current remaining, projected remaining, projected variance, utilisation and period-progress metrics;
-- native-period and normalised date-range analysis foundation;
-- proportional flexible budget calculations for partial periods;
-- discrete scheduled commitments preserved as dated items, not pro-rated;
-- account/category filter architecture;
-- unbudgeted category detection with historical average foundation;
-- transaction/item count foundations for drill-down;
-- Saved Views / View Preferences storage for columns, sorting, filters, account/category selections and future reports;
-- Reset View support;
-- reusable services for future reports/export.
+- unbudgeted category detection;
+- Saved Views / View Preferences foundation.
 
-Deferred from v0.8.0:
-- CSV import and reconciliation;
-- full report/export UI;
-- full persistent drag-and-drop table configuration UI;
-- Home Assistant budget sensors.
+Deferred from v0.8.0 and corrected in v0.9.0:
+- full edit UI for existing major financial records.
 
-### v0.9.0 - CSV Import & Reconciliation
+### v0.9.0 - Editing, CSV Import & Reconciliation
 
-Planned scope:
-- CSV transaction import;
-- configurable column mapping;
-- Australian date formats;
-- duplicate detection;
-- transaction matching and reconciliation;
-- categorisation;
-- Planned vs Actual reconciliation;
-- recurring transaction detection;
-- merchant/payee normalisation;
+Status: Implemented in the v0.9.0 development PR.
+
+Delivered scope:
+- full record editing for Accounts, Transactions, Categories, Bills, Recurring Expenses, Income, Planned Spending and Budgets;
+- edit forms discoverable from the current screens;
+- persistence after reload through update APIs;
+- effective-dated edit support for income, recurring expenses and budgets;
+- edit-history audit foundation;
+- CSV bank transaction import;
+- account selection during import;
+- column mapping;
+- Australian date support: DD/MM/YYYY, DD/MM/YY and YYYY-MM-DD;
 - import preview;
-- rollback where practical;
-- architecture that can later accept CDR/Open Banking data.
+- invalid-row reporting;
+- duplicate detection;
+- duplicate skipping by default;
+- matching suggestions against Bills, Recurring Expenses and Planned Spending;
+- Actual vs Expected variance for reconciliation links;
+- import batches and import history;
+- reconciliation review queue;
+- category suggestion foundation;
+- merchant/description normalisation foundation;
+- imported transactions feeding Budgeting, Cash Flow, Forecasting and future Reports.
 
 ### v0.10.0 - Spending Intelligence
 
 Planned scope:
-- detect subscriptions, utilities, insurance, mortgage/rent, phone, internet and memberships from imported/bank history;
-- suggest recurring expenses for user confirmation;
+- recurring-payment detection;
 - merchant normalisation;
 - categorisation rules;
 - spending trends;
-- abnormal-spending detection;
-- do not automatically create commitments without user approval.
+- anomaly detection;
+- rule learning from accepted import/reconciliation decisions.
 
 ### v0.11.0 - Goals & Financial Planning
 
-Savings targets, sinking funds, target dates, required contributions, goal forecasting and planning for irregular costs such as registration, insurance, Christmas, school expenses, holidays and home maintenance.
+Planned scope:
+- savings targets;
+- sinking funds;
+- target dates;
+- required contributions;
+- goal forecasting;
+- planning for irregular costs such as registration, insurance, Christmas, school expenses, holidays and home maintenance.
 
 ### v0.12.0 - Australian Open Banking / CDR
 
-Future Australian Consumer Data Right / Open Banking support:
-- account discovery;
-- balance synchronisation;
-- transaction synchronisation;
-- incremental updates;
-- duplicate prevention;
-- connection health;
-- manual and automatic refresh;
-- integration with the import/reconciliation pipeline.
-
-Do not implement bank credential scraping. Future bank connectivity must use appropriate Australian Open Banking/CDR providers and security practices.
+Planned scope:
+- Australian CDR/Open Banking account connections;
+- secure consent handling;
+- account and transaction ingestion through the same pipeline as manual entry and CSV import.
 
 ### v0.13.0 - Forecast & Scenario Intelligence
 
-Saved scenarios, scenario comparisons, long-range forecasts, forecast accuracy tracking and explainable scenario intelligence.
+Planned scope:
+- saved scenarios;
+- forecast confidence;
+- forecast accuracy tracking;
+- explainable scenario comparisons.
 
 ### v0.14.0 - Insights & Financial Health
 
-Explainable insights including savings rate, spending pressure, expensive-period detection, budget risk, category trends, recurring expense increases, income changes, projected savings rate, high-expense periods, cash-flow pressure periods and year-end projections.
+Planned scope:
+- explainable household finance insights;
+- financial-health scorecards;
+- risk warnings;
+- trend interpretation.
 
 ### v0.15.0 - Home Assistant Integration
 
-Planned sensors/entities:
-- current household balance;
-- forecast 30-day balance;
-- forecast year-end balance;
-- next bill;
-- next income;
-- bills due this week;
-- Planned Spending this month;
-- lowest forecast balance;
-- projected shortfall date;
-- category budget remaining;
-- monthly net cash flow;
-- useful dashboard cards and automations.
+Planned scope:
+- Home Assistant sensors;
+- dashboard cards;
+- automations for shortfalls, upcoming bills and budget warnings.
 
 ### v1.0.0 - Production Release
 
-Reliability, security hardening, onboarding, performance, backup/recovery, documentation, accessibility and production-quality Home Assistant install/update experience.
-
-## CSV import and recurring-cost discovery requirements
-
-CSV bank transaction imports will eventually be used to compare planned versus actual spending, match imported transactions against expected income, recurring expenses, bills, forecast occurrences and planned purchases, detect duplicates and suggest recurring expenses from transaction history.
+Planned scope:
+- production hardening;
+- installation polish;
+- migration reliability;
+- user documentation;
+- stable release packaging.
