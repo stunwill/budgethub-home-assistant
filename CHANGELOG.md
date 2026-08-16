@@ -2,6 +2,36 @@
 
 All notable Fynvo changes are documented here. Starting with v0.3.0, every release must include a user-readable changelog entry, Home Assistant-visible release notes and GitHub release notes.
 
+## v0.8.0
+
+### Added
+- Added Advanced Budgeting foundations as a first-class domain.
+- Added expense and income budget/target support.
+- Added weekly, true fortnightly, monthly, quarterly and annual budget periods.
+- Added annual allocation strategies for weekly, fortnightly and monthly equivalents while retaining the true annual limit.
+- Added category hierarchy foundations with safe parent/child relationships and cycle prevention.
+- Added parent/child budget modes: Independent, Shared Parent Pool and Parent Equals Sum of Children.
+- Added budget analysis for Budget vs Actual vs Committed vs Planned vs Forecast.
+- Added current remaining, projected remaining, projected variance, utilisation and period-progress metrics.
+- Added rollover fields that keep base budget, rollover and effective available budget separate.
+- Added unbudgeted category detection with historical-average foundations.
+- Added Saved Views / View Preferences storage for table layouts, sorting, filters, account/category selections and future reporting views.
+- Added Reset View support.
+- Added budgeting documentation and v0.8.0 release notes.
+
+### Changed
+- Updated Fynvo version references to v0.8.0.
+- Updated Home Assistant add-on metadata to include budgeting.
+- Updated the roadmap to keep v0.9.0 CSV Import & Reconciliation as the next release.
+
+### Security
+- Budgeting, category hierarchy and saved-view services are scoped to the authenticated user at the service/database layer.
+
+### Deferred
+- Full visual drag-and-drop column configuration and report export remain future UI refinements.
+- CSV import and reconciliation remain planned for v0.9.0.
+- Full Home Assistant budget sensors remain planned for v0.15.0.
+
 ## v0.7.0
 
 ### Added
