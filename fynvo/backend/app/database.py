@@ -37,7 +37,15 @@ def get_db():
 
 
 def run_migrations() -> None:
-    from .models import Account, AppConfig, LoginAttempt, Session, Transaction, Transfer, User
+    from .models import (
+        Account,
+        AppConfig,
+        LoginAttempt,
+        Session,
+        Transaction,
+        Transfer,
+        User,
+    )
 
     engine = get_engine()
     Base.metadata.create_all(bind=engine, tables=[User.__table__, Session.__table__, LoginAttempt.__table__, AppConfig.__table__, Account.__table__, Transfer.__table__, Transaction.__table__])
