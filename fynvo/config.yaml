@@ -1,5 +1,5 @@
 name: Fynvo
-version: "0.1.0"
+version: "0.2.0"
 slug: fynvo
 description: Household cash-flow forecasting, recurring costs, income and planned spending.
 url: https://github.com/stunwill/fynvo-home-assistant
@@ -13,7 +13,7 @@ startup: application
 boot: auto
 ingress: true
 ingress_port: 8097
-panel_icon: mdi:wallet-outline
+panel_icon: mdi:finance
 panel_title: Fynvo
 init: false
 map:

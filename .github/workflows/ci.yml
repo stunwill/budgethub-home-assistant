@@ -36,7 +36,10 @@ jobs:
         run: python -m compileall fynvo/backend/app
 
       - name: Ruff lint
-        run: ruff check fynvo/backend/app
+        run: ruff check fynvo/backend/app fynvo/backend/tests
+
+      - name: Run backend tests
+        run: PYTHONPATH=fynvo/backend pytest fynvo/backend/tests
 
       - name: Import application
         run: PYTHONPATH=fynvo/backend python -c "from app.main import app; print(app.title)"
@@ -97,6 +100,8 @@ jobs:
 
           if config.get("slug") != "fynvo":
               raise SystemExit("config.yaml slug must be 'fynvo'")
+          if config.get("version") != "0.2.0":
+              raise SystemExit("config.yaml version must be 0.2.0")
 
           print("Home Assistant app metadata looks valid")
           PY
