@@ -37,15 +37,7 @@ def get_db():
 
 
 def run_migrations() -> None:
-    from .models import (
-        Account,
-        AppConfig,
-        LoginAttempt,
-        Session,
-        Transaction,
-        Transfer,
-        User,
-    )
+    from .models import Account, AppConfig, LoginAttempt, Session, Transaction, Transfer, User
 
     engine = get_engine()
     Base.metadata.create_all(bind=engine, tables=[
@@ -54,14 +46,52 @@ def run_migrations() -> None:
     ])
     with engine.begin() as connection:
         connection.execute(text("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)"))
+        connection.execute(text("""
+            CREATE TABLE IF NOT EXISTS income_sources (
+                id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, name VARCHAR(140) NOT NULL,
+                amount_cents INTEGER, frequency VARCHAR(40), interval_count INTEGER,
+                next_payment_date DATE, destination_account_id INTEGER, payer VARCHAR(140),
+                category VARCHAR(80), owner_group VARCHAR(80), is_active BOOLEAN NOT NULL DEFAULT 1,
+                start_date DATE, end_date DATE, notes TEXT, source VARCHAR(40) NOT NULL DEFAULT 'manual',
+                created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(destination_account_id) REFERENCES accounts(id)
+            )
+        """))
+        connection.execute(text("""
+            CREATE TABLE IF NOT EXISTS recurring_expenses (
+                id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, name VARCHAR(140) NOT NULL,
+                amount_cents INTEGER, frequency VARCHAR(40), interval_count INTEGER, next_due_date DATE,
+                direct_debit BOOLEAN, account_id INTEGER, source_account_text VARCHAR(140), category VARCHAR(80),
+                expense_type VARCHAR(80), owner_group VARCHAR(80), is_active BOOLEAN NOT NULL DEFAULT 1,
+                variable_amount BOOLEAN NOT NULL DEFAULT 0, aliases TEXT, notes TEXT, last_paid_date DATE,
+                source VARCHAR(40) NOT NULL DEFAULT 'manual', created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(account_id) REFERENCES accounts(id)
+            )
+        """))
+        connection.execute(text("""
+            CREATE TABLE IF NOT EXISTS bills (
+                id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, recurring_expense_id INTEGER,
+                name VARCHAR(140) NOT NULL, provider VARCHAR(140), bill_type VARCHAR(80), priority VARCHAR(20) NOT NULL DEFAULT 'normal',
+                original_status VARCHAR(80), original_amount_cents INTEGER, remaining_amount_cents INTEGER,
+                due_date DATE, pay_cycle_date DATE, account_id INTEGER, source_account_text VARCHAR(140), paid_through_date DATE,
+                notes TEXT, is_active BOOLEAN NOT NULL DEFAULT 1, resolved_at DATETIME, paid_at DATETIME,
+                source VARCHAR(40) NOT NULL DEFAULT 'manual', created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(recurring_expense_id) REFERENCES recurring_expenses(id), FOREIGN KEY(account_id) REFERENCES accounts(id)
+            )
+        """))
         current = connection.execute(text("SELECT version FROM schema_version ORDER BY version DESC LIMIT 1")).scalar()
         if current is None:
-            connection.execute(text("INSERT INTO schema_version (version) VALUES (3)"))
-        elif current < 3:
-            connection.execute(text("UPDATE schema_version SET version = 3"))
+            connection.execute(text("INSERT INTO schema_version (version) VALUES (4)"))
+        elif current < 4:
+            connection.execute(text("UPDATE schema_version SET version = 4"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_account_date ON transactions(account_id, transaction_date)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_user_type ON transactions(user_id, transaction_type)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_source ON transactions(source)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS idx_income_user_next ON income_sources(user_id, next_payment_date)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS idx_recurring_user_next ON recurring_expenses(user_id, next_due_date)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS idx_recurring_user_active ON recurring_expenses(user_id, is_active)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS idx_bills_user_due ON bills(user_id, due_date)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS idx_bills_priority ON bills(priority)"))
 
 
 def reset_database_for_tests() -> None:
