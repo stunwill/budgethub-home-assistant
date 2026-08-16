@@ -13,6 +13,7 @@ class Settings(BaseModel):
     timezone: str = "Australia/Melbourne"
     currency: str = "AUD"
     session_days: int = 7
+    session_expiry_minutes: int = 60 * 24 * 7
     cookie_secure: bool = False
 
 
@@ -21,4 +22,11 @@ def get_settings() -> Settings:
     data_dir = Path(os.getenv("FYNVO_DATA_DIR", "/data"))
     database_url = os.getenv("FYNVO_DATABASE_URL", f"sqlite:///{data_dir / 'fynvo.sqlite3'}")
     cookie_secure = os.getenv("FYNVO_COOKIE_SECURE", "false").lower() == "true"
-    return Settings(data_dir=data_dir, database_url=database_url, cookie_secure=cookie_secure)
+    session_days = int(os.getenv("FYNVO_SESSION_DAYS", "7"))
+    return Settings(
+        data_dir=data_dir,
+        database_url=database_url,
+        cookie_secure=cookie_secure,
+        session_days=session_days,
+        session_expiry_minutes=session_days * 24 * 60,
+    )
