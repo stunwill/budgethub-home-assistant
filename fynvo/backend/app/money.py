@@ -1,4 +1,4 @@
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 
 def parse_money(value) -> int:
@@ -6,7 +6,7 @@ def parse_money(value) -> int:
         amount = Decimal(str(value))
     except (InvalidOperation, ValueError) as exc:
         raise ValueError("Invalid monetary amount") from exc
-    cents = (amount * Decimal("100")).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    cents = (amount * Decimal(100)).quantize(Decimal(1), rounding=ROUND_HALF_UP)
     return int(cents)
 
 
