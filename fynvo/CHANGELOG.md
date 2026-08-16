@@ -1,5 +1,19 @@
 # Fynvo Add-on Changelog
 
+## v0.7.0
+
+### Added
+- Redesigned Fynvo interface with the new dark sidebar, modern dashboard cards and responsive layout.
+- Unified Financial Calendar with Day, Week and Month views.
+- Cash Flow dashboard chart using Baseline and Expected forecasts.
+- Event drill-down for calendar and cash-flow records.
+- Quick Add for common financial records.
+- Category visibility foundation across Fynvo modules.
+
+### Changed
+- Version updated to 0.7.0.
+- Navigation reorganised into Core, Analysis and Settings groups.
+
 ## v0.6.0
 
 ### Added

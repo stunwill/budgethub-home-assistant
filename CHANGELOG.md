@@ -2,6 +2,31 @@
 
 All notable Fynvo changes are documented here. Starting with v0.3.0, every release must include a user-readable changelog entry, Home Assistant-visible release notes and GitHub release notes.
 
+## v0.7.0
+
+### Added
+- Added the first unified Financial Calendar experience with Day, Week and Month views.
+- Added calendar-based visibility for income, recurring expenses, bills, Planned Spending and forecast-generated events using the v0.6.0 forecast engine.
+- Added financial event drill-down modals for projected calendar and cash-flow events.
+- Added a modern Fynvo dashboard layout inspired by the approved visual mock-up.
+- Added a prominent Cash Flow Forecast card with Baseline and Expected forecast lines.
+- Added compact Forecast Summary, Upcoming Commitments, Top Planned Spending and Quick Stats dashboard panels.
+- Added Quick Add for transactions, income, recurring expenses, bills and Planned Spending using existing APIs.
+- Added Categories screen foundation that unifies category visibility across transactions, income, recurring expenses, bills and Planned Spending.
+- Added reusable Fynvo design-system styling for cards, badges, navigation, calendar events, alerts, tables, modals and responsive layouts.
+
+### Changed
+- Restructured navigation into Core, Analysis and Settings groups.
+- Updated desktop sidebar to use the dark navy Fynvo visual language.
+- Modernised financial amount presentation, table rows, event badges and responsive layouts.
+- Improved cash-shortfall presentation in the dashboard and Cash Flow views.
+- Updated Fynvo version references to v0.7.0.
+
+### Deferred
+- Full Budgeting remains planned for v0.8.0.
+- CSV import and reconciliation remain planned for v0.9.0.
+- Saved scenario management, advanced insights and Home Assistant sensors remain future roadmap items.
+
 ## v0.6.0
 
 ### Added
@@ -52,47 +77,3 @@ All notable Fynvo changes are documented here. Starting with v0.3.0, every relea
 
 ### Security
 - Planned Spending APIs require the authenticated server-side session and are scoped to the authenticated user.
-
-## v0.4.0
-
-### Added
-- Added Income management for recurring and one-off income sources.
-- Added Recurring Expenses with weekly, fortnightly, every-28-days, every-four-weeks, monthly, quarterly, yearly, custom and one-off recurrence support.
-- Added incomplete recurring-expense tracking so records can be saved with missing amount, frequency, date or account information.
-- Added Bills & Obligations for one-off bills, arrears and outstanding financial commitments.
-- Added dynamic due-state calculation for upcoming, due soon, due today, overdue, paid and unknown bills.
-- Added priority support for bills and obligations.
-- Added paid-through date support for utility-style obligations.
-- Added weekly, monthly, pay-cycle and annual schedule APIs and UI views.
-- Added an Excel-style Jan-Dec annual financial matrix with clickable drill-down cells.
-- Added initial household recurring-expense seed data, including incomplete and inactive records.
-- Added initial outstanding bills and obligations seed data.
-
-### Changed
-- Updated Fynvo version references to v0.4.0.
-- Updated the Overview dashboard to use real income, recurring-expense and bill/obligation data.
-- Updated Upcoming so income, recurring expenses, bills and overdue obligations are shown chronologically.
-- Preserved scheduled commitments separately from actual transactions so future CSV reconciliation can match expected vs actual without double-counting.
-
-### Fixed
-- Prevented unknown recurring-expense and bill amounts from being displayed as real `$0.00` obligations.
-- Preserved unknown dates as pending/incomplete instead of inventing due dates.
-
-### Security
-- Income, recurring expense, bill and schedule APIs require the authenticated server-side session.
-- Scheduled financial records are scoped to the authenticated user.
-
-## v0.3.0
-
-### Added
-- Added account management, calculated balances, manual transactions, account-to-account transfers and dashboard financial-position data.
-- Added transaction metadata foundations for future CSV import, reconciliation and recurring-cost discovery.
-
-### Fixed
-- Fixed deterministic root/SPA route handling for Home Assistant ingress.
-
-## v0.2.0
-
-### Added
-- Fynvo foundation, authentication, local SQLite persistence and responsive Overview dashboard.
-- First-run administrator setup, username/password login, server-side sessions, logout and password change.

@@ -10,6 +10,7 @@ This roadmap is the canonical development queue for Fynvo. Future development sh
 4. Make scenario planning simple enough for everyday household use.
 5. Keep financial calculations clear, auditable and explainable.
 6. Support Australian household finance first while allowing later internationalisation.
+7. Maintain a cohesive Fynvo visual and navigation system across future modules.
 
 ## Long-term product direction
 
@@ -38,7 +39,7 @@ Reviews of PocketSmith, YNAB, Frollo, WeMoney, Buxfer and Moneysoft highlighted 
 - forecast shortfall and low-balance warnings;
 - category spending trends and forecast accuracy tracking.
 
-Fynvo should learn from these capabilities while preserving its own model: Actual, Committed, Planned, Budget and Forecast remain distinct.
+Fynvo should learn from these capabilities while preserving its own model: Actual, Committed, Planned, Budget, Forecast and Scenario remain distinct.
 
 ## Core product concepts
 
@@ -57,9 +58,12 @@ The amount the household intends or permits itself to spend for a category, peri
 ### Forecast
 What Fynvo calculates is likely to happen based on balances, commitments, plans, budgets where available and historical behaviour where appropriate.
 
+### Scenario
+A temporary or saved what-if view of what would happen if circumstances changed.
+
 ## Release definition of done from v0.3.0 onward
 
-Every release must include a version bump, database migrations where required, automated tests, CI validation, a CHANGELOG entry, Home Assistant release notes, a Git tag, a GitHub Release and user-readable release notes.
+Every release must include a version bump, database migrations where required, automated tests, CI validation, a CHANGELOG entry, Home Assistant release notes, GitHub release notes and user-readable release notes.
 
 Home Assistant ingress access, login and protected APIs are release blockers.
 
@@ -118,7 +122,7 @@ Delivered scope:
 
 ### v0.6.0 - Cash Flow Forecasting & Financial Scenarios
 
-Status: Implemented in the v0.6.0 development PR.
+Status: Completed.
 
 Delivered scope:
 - reusable cash-flow forecast engine;
@@ -136,17 +140,25 @@ Delivered scope:
 
 ### v0.7.0 - Financial Calendar & Category Management
 
-Product outcome: a unified timeline showing expected money entering and leaving the household.
+Status: Implemented in the v0.7.0 development PR.
 
-Planned scope:
-- unified financial calendar;
-- income, recurring expenses, bills, Planned Spending and forecast events;
-- day, week and month calendar views;
-- category management improvements;
-- category hierarchy where appropriate;
-- category icons and visual identification;
+Delivered scope:
+- modern Fynvo dashboard based on the approved visual mock-up;
+- dark navy sidebar and grouped navigation;
+- reusable design-system foundation for cards, badges, modals, tables, charts, calendar events, alerts and responsive layout;
+- unified Financial Calendar with day, week and month views;
+- calendar events generated from the v0.6.0 forecast engine so income, recurring expenses, bills, Planned Spending and effective-dated changes stay consistent with Cash Flow;
 - financial event drill-down;
-- calendar-based future financial planning.
+- Cash Flow view with forecast chart and chronological timeline;
+- Quick Add entry point for common financial records;
+- category visibility foundation across transactions, income, recurring expenses, bills and Planned Spending;
+- future navigation locations for Budgeting, Reports, Insights and Scenarios without fake functionality.
+
+Deferred from v0.7.0:
+- persistent category hierarchy editing;
+- full budgeting;
+- full saved scenario management;
+- full reporting and insight engines.
 
 ### v0.8.0 - Advanced Budgeting
 
@@ -158,7 +170,8 @@ Planned scope:
 - spend-during-period, spread-weekly, spread-fortnightly, spread-monthly and allocate-to-specific-date strategies;
 - rollover and non-rollover budgets;
 - accumulated category balances;
-- budget remaining, actual spend, planned spend, expected future spend, projected year-end spend and forecast budget variance.
+- budget remaining, actual spend, planned spend, expected future spend, projected year-end spend and forecast budget variance;
+- sinking-fund compatibility for irregular/annual costs.
 
 Example:
 
@@ -170,7 +183,7 @@ Forecast YE: $13,280
 Projected over budget: $1,280
 ```
 
-### v0.9.0 - Transaction Import & Reconciliation
+### v0.9.0 - CSV Import & Reconciliation
 
 Planned scope:
 - CSV transaction import;
@@ -179,35 +192,49 @@ Planned scope:
 - duplicate detection;
 - transaction matching and reconciliation;
 - categorisation;
+- Planned vs Actual reconciliation;
 - recurring transaction detection;
 - merchant/payee normalisation;
 - import preview;
 - rollback where practical;
 - architecture that can later accept CDR/Open Banking data.
 
-### v0.10.0 - Recurring Transaction Intelligence
+### v0.10.0 - Spending Intelligence
 
 Planned scope:
 - detect subscriptions, utilities, insurance, mortgage/rent, phone, internet and memberships from imported/bank history;
 - suggest recurring expenses for user confirmation;
-- detect recurring expense increases;
+- merchant normalisation;
+- categorisation rules;
+- spending trends;
+- abnormal-spending detection;
 - do not automatically create commitments without user approval.
 
-### v0.11.0 - Reports & Analytics
+### v0.11.0 - Goals & Financial Planning
 
-Trends, comparisons, budget-vs-actual reporting, forecast accuracy reporting, net worth reporting and cash-flow reports.
+Savings targets, sinking funds, target dates, required contributions, goal forecasting and planning for irregular costs such as registration, insurance, Christmas, school expenses, holidays and home maintenance.
 
-### v0.12.0 - Goals, Sinking Funds & Savings
+### v0.12.0 - Australian Open Banking / CDR
 
-Savings targets and sinking funds for irregular and annual costs such as registration, insurance, Christmas, school expenses, holidays and home maintenance.
+Future Australian Consumer Data Right / Open Banking support:
+- account discovery;
+- balance synchronisation;
+- transaction synchronisation;
+- incremental updates;
+- duplicate prevention;
+- connection health;
+- manual and automatic refresh;
+- integration with the import/reconciliation pipeline.
 
-### v0.13.0 - Debt Planner
+Do not implement bank credential scraping. Future bank connectivity must use appropriate Australian Open Banking/CDR providers and security practices.
 
-Loans, mortgages, repayments, payoff strategies and debt modelling.
+### v0.13.0 - Forecast & Scenario Intelligence
 
-### v0.14.0 - Household Finance
+Saved scenarios, scenario comparisons, long-range forecasts, forecast accuracy tracking and explainable scenario intelligence.
 
-Multi-user and shared/private finances.
+### v0.14.0 - Insights & Financial Health
+
+Explainable insights including savings rate, spending pressure, expensive-period detection, budget risk, category trends, recurring expense increases, income changes, projected savings rate, high-expense periods, cash-flow pressure periods and year-end projections.
 
 ### v0.15.0 - Home Assistant Integration
 
@@ -222,28 +249,12 @@ Planned sensors/entities:
 - lowest forecast balance;
 - projected shortfall date;
 - category budget remaining;
-- monthly net cash flow.
+- monthly net cash flow;
+- useful dashboard cards and automations.
 
-### v0.16.0 - Financial Intelligence
+### v1.0.0 - Production Release
 
-Explainable insights including category trends, abnormal spending, recurring expense increases, income changes, projected savings rate, high-expense periods, cash-flow pressure periods, category overspend forecasts and year-end projections.
-
-### v0.17.0 - Scenario Planning
-
-Deeper what-if modelling, saved scenarios, scenario comparisons and scenario sharing.
-
-### v0.18.0 - Australian Open Banking / CDR Integration
-
-Future Australian Consumer Data Right / Open Banking support:
-- account discovery;
-- balance synchronisation;
-- transaction synchronisation;
-- incremental updates;
-- duplicate prevention;
-- connection health;
-- manual and automatic refresh.
-
-Do not implement bank credential scraping. Future bank connectivity must use appropriate Australian Open Banking/CDR providers and security practices.
+Reliability, security hardening, onboarding, performance, backup/recovery, documentation, accessibility and production-quality Home Assistant install/update experience.
 
 ## CSV import and recurring-cost discovery requirements
 
