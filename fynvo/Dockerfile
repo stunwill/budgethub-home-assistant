@@ -1,3 +1,5 @@
+ARG BUILD_FROM=ghcr.io/home-assistant/aarch64-base-python:3.12-alpine3.20
+
 FROM node:22-alpine AS frontend-builder
 WORKDIR /frontend
 COPY frontend/package.json ./package.json
@@ -5,7 +7,6 @@ RUN npm install
 COPY frontend ./
 RUN npm run build
 
-ARG BUILD_FROM=ghcr.io/home-assistant/aarch64-base-python:3.12-alpine3.20
 FROM ${BUILD_FROM}
 
 WORKDIR /app
