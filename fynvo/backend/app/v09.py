@@ -4,8 +4,9 @@ import csv
 import hashlib
 import io
 import re
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from difflib import SequenceMatcher
+from types import SimpleNamespace
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -28,18 +29,20 @@ from .budget import (
 )
 from .database import get_db
 from .finance import bill_response, income_response, recurring_response
-from .ledger import create_transaction, list_transactions, update_transaction
+from .ledger import create_transaction, list_transactions
 from .models import User
 from .money import cents_to_decimal, parse_money
-from .schemas import TransactionCreate, TransactionUpdate
+from .schemas import TransactionCreate
 from .security import utcnow
 
 router = APIRouter(prefix="/api")
 DB = Depends(get_db)
 USER = Depends(get_current_user)
-
-IMPORT_STATUSES = {"new", "likely_duplicate", "exact_duplicate", "potential_match", "needs_review", "invalid"}
 RECONCILIATION_STATUSES = {"unmatched", "suggested_match", "matched", "ignored", "duplicate", "needs_review"}
+
+
+def _row_object(row: Any) -> Any:
+    return SimpleNamespace(**dict(row)) if hasattr(row, "keys") else row
 
 
 def _as_date(value: Any) -> date | None:
@@ -50,7 +53,7 @@ def _as_date(value: Any) -> date | None:
     text_value = str(value).strip()
     for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d/%m/%y"):
         try:
-            return datetime.strptime(text_value, fmt).date()
+            return datetime.strptime(text_value, fmt).replace(tzinfo=UTC).date()
         except ValueError:
             continue
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid Australian date: {text_value}")
@@ -67,9 +70,16 @@ def _parse_csv_date(value: str) -> tuple[date | None, str | None]:
 
 def _normalise_text(value: str | None) -> str:
     cleaned = re.sub(r"\s+", " ", (value or "").strip())
-    cleaned = re.sub(r"\b(VIC|NSW|QLD|SA|WA|TAS|NT|ACT|AU|AUS)\b", "", cleaned, flags=re.I)
+    cleaned = re.sub(r"\b(VIC|NSW|QLD|SA|WA|TAS|NT|ACT|AU|AUS)\b", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\b\d{3,}\b", "", cleaned)
     return re.sub(r"\s+", " ", cleaned).strip().title()
+
+
+def _parse_amount_safe(value: str) -> int | None:
+    try:
+        return parse_money(value)
+    except (ArithmeticError, TypeError, ValueError):
+        return None
 
 
 def _fingerprint(account_id: int, tx_date: date, amount_cents: int, description: str) -> str:
@@ -86,29 +96,30 @@ def _row_amount(row: dict[str, str], mapping: dict[str, str]) -> tuple[int | Non
     debit = value("debit")
     credit = value("credit")
     if signed:
-        try:
-            cents = parse_money(signed)
-        except Exception:
+        cents = _parse_amount_safe(signed)
+        if cents is None:
             return None, f"Invalid amount '{signed}'", "expense"
         return abs(cents), None, "income" if cents >= 0 else "expense"
-    if debit or credit:
-        try:
-            if credit:
-                return parse_money(credit), None, "income"
-            return parse_money(debit), None, "expense"
-        except Exception:
-            return None, "Invalid debit or credit amount", "expense"
+    if credit:
+        cents = _parse_amount_safe(credit)
+        return (cents, None, "income") if cents is not None else (None, "Invalid credit amount", "expense")
+    if debit:
+        cents = _parse_amount_safe(debit)
+        return (cents, None, "expense") if cents is not None else (None, "Invalid debit amount", "expense")
     return None, "Missing amount", "expense"
 
 
 def _find_duplicates(db: DbSession, user: User, account_id: int, tx_date: date, amount_cents: int, description: str) -> list[dict]:
-    rows = db.execute(text("""
-        SELECT id, transaction_date, amount_cents, description, merchant, category, account_id
-        FROM transactions
-        WHERE user_id=:user_id AND account_id=:account_id
-          AND amount_cents=:amount
-          AND transaction_date BETWEEN :start AND :end
-    """), {"user_id": user.id, "account_id": account_id, "amount": amount_cents, "start": tx_date - timedelta(days=2), "end": tx_date + timedelta(days=2)}).mappings().all()
+    rows = db.execute(
+        text("""
+            SELECT id, transaction_date, amount_cents, description, merchant, category, account_id
+            FROM transactions
+            WHERE user_id=:user_id AND account_id=:account_id
+              AND amount_cents=:amount
+              AND transaction_date BETWEEN :start AND :end
+        """),
+        {"user_id": user.id, "account_id": account_id, "amount": amount_cents, "start": tx_date - timedelta(days=2), "end": tx_date + timedelta(days=2)},
+    ).mappings().all()
     results = []
     normal = _normalise_text(description).lower()
     for row in rows:
@@ -122,31 +133,45 @@ def _suggest_category(db: DbSession, user: User, description: str) -> str | None
     normal = _normalise_text(description).lower()
     if not normal:
         return None
-    row = db.execute(text("""
-        SELECT category FROM transactions
-        WHERE user_id=:user_id AND category IS NOT NULL
-          AND lower(description) LIKE :needle
-        ORDER BY updated_at DESC LIMIT 1
-    """), {"user_id": user.id, "needle": f"%{normal.split()[0]}%"}).mappings().first()
+    row = db.execute(
+        text("""
+            SELECT category FROM transactions
+            WHERE user_id=:user_id AND category IS NOT NULL
+              AND lower(description) LIKE :needle
+            ORDER BY updated_at DESC LIMIT 1
+        """),
+        {"user_id": user.id, "needle": f"%{normal.split()[0]}%"},
+    ).mappings().first()
     if row:
         return row["category"]
-    known = [("woolworths", "Groceries > Supermarket"), ("coles", "Groceries > Supermarket"), ("powershop", "Utilities > Electricity"), ("telstra", "Utilities > Internet"), ("vicroads", "Transport > Car > Registration"), ("budget direct", "Transport > Car > Insurance")]
+    known = [
+        ("woolworths", "Groceries > Supermarket"),
+        ("coles", "Groceries > Supermarket"),
+        ("powershop", "Utilities > Electricity"),
+        ("telstra", "Utilities > Internet"),
+        ("vicroads", "Transport > Car > Registration"),
+        ("budget direct", "Transport > Car > Insurance"),
+    ]
     return next((category for key, category in known if key in normal), None)
 
 
 def _matches(db: DbSession, user: User, tx_date: date, amount_cents: int, description: str, category: str | None) -> list[dict]:
     normal = _normalise_text(description).lower()
     candidates = []
-    for table, label, date_col, amount_col, name_col, type_col in [
+    sources = [
         ("bills", "bill", "due_date", "remaining_amount_cents", "name", "bill_type"),
         ("recurring_expenses", "recurring_expense", "next_due_date", "amount_cents", "name", "category"),
         ("planned_spending", "planned_spending", "planned_date", "estimated_amount_cents", "name", "category"),
-    ]:
-        rows = db.execute(text(f"""
-            SELECT id, {name_col} AS name, {date_col} AS expected_date, {amount_col} AS expected_amount, {type_col} AS category
-            FROM {table}
-            WHERE user_id=:user_id AND {amount_col} IS NOT NULL
-        """), {"user_id": user.id}).mappings().all()
+    ]
+    for table, label, date_col, amount_col, name_col, type_col in sources:
+        rows = db.execute(
+            text(f"""
+                SELECT id, {name_col} AS name, {date_col} AS expected_date, {amount_col} AS expected_amount, {type_col} AS category
+                FROM {table}
+                WHERE user_id=:user_id AND {amount_col} IS NOT NULL
+            """),
+            {"user_id": user.id},
+        ).mappings().all()
         for row in rows:
             expected_date = _as_date(row["expected_date"])
             days = abs((tx_date - expected_date).days) if expected_date else 99
@@ -185,15 +210,18 @@ def _preview_rows(db: DbSession, user: User, csv_text: str, mapping: dict[str, s
     return rows
 
 
-def _serialise_batch(row) -> dict:
+def _serialise_batch(row: Any) -> dict:
     return {"id": row.id, "filename": row.filename, "account_id": row.account_id, "row_count": row.row_count, "imported_count": row.imported_count, "skipped_count": row.skipped_count, "duplicate_count": row.duplicate_count, "matched_count": row.matched_count, "failed_count": row.failed_count, "status": row.status, "created_at": str(row.created_at)}
 
 
 def _record_edit(db: DbSession, user: User, record_type: str, record_id: int, original: dict, updated: dict, source: str = "ui") -> None:
-    db.execute(text("""
-        INSERT INTO edit_history (user_id, record_type, record_id, original_json, updated_json, source, created_at)
-        VALUES (:user_id, :record_type, :record_id, :original, :updated, :source, :now)
-    """), {"user_id": user.id, "record_type": record_type, "record_id": record_id, "original": str(original), "updated": str(updated), "source": source, "now": utcnow()})
+    db.execute(
+        text("""
+            INSERT INTO edit_history (user_id, record_type, record_id, original_json, updated_json, source, created_at)
+            VALUES (:user_id, :record_type, :record_id, :original, :updated, :source, :now)
+        """),
+        {"user_id": user.id, "record_type": record_type, "record_id": record_id, "original": str(original), "updated": str(updated), "source": source, "now": utcnow()},
+    )
 
 
 def _update_table_record(db: DbSession, user: User, table: str, record_id: int, allowed: set[str], payload: dict[str, Any], amount_fields: dict[str, str] | None = None) -> Any:
@@ -205,7 +233,7 @@ def _update_table_record(db: DbSession, user: User, table: str, record_id: int, 
         if api_name in payload:
             data[column] = parse_money(payload[api_name]) if payload[api_name] not in (None, "") else None
     if not data:
-        return existing
+        return _row_object(existing)
     values = {"id": record_id, "user_id": user.id, "now": utcnow()}
     assignments = []
     for key, value in data.items():
@@ -215,7 +243,7 @@ def _update_table_record(db: DbSession, user: User, table: str, record_id: int, 
     db.execute(text(f"UPDATE {table} SET {', '.join(assignments)} WHERE id=:id AND user_id=:user_id"), values)
     updated = db.execute(text(f"SELECT * FROM {table} WHERE id=:id AND user_id=:user_id"), {"id": record_id, "user_id": user.id}).mappings().first()
     _record_edit(db, user, table, record_id, dict(existing), dict(updated))
-    return updated
+    return _row_object(updated)
 
 
 @router.put("/income/{income_id}")
@@ -249,7 +277,7 @@ def edit_bill(bill_id: int, payload: dict[str, Any], current_user: User = USER, 
     if status_value in {"paid", "resolved"}:
         now = utcnow()
         db.execute(text("UPDATE bills SET paid_at=:paid, resolved_at=:resolved, remaining_amount_cents=0, updated_at=:now WHERE id=:id AND user_id=:user_id"), {"id": bill_id, "user_id": current_user.id, "paid": now if status_value == "paid" else None, "resolved": now, "now": now})
-        row = db.execute(text("SELECT * FROM bills WHERE id=:id AND user_id=:user_id"), {"id": bill_id, "user_id": current_user.id}).mappings().first()
+        row = _row_object(db.execute(text("SELECT * FROM bills WHERE id=:id AND user_id=:user_id"), {"id": bill_id, "user_id": current_user.id}).mappings().first())
     db.commit()
     return bill_response(row)
 
@@ -274,6 +302,12 @@ def budgets(include_inactive: bool = False, current_user: User = USER, db: DbSes
     return list_budgets(db, current_user, include_inactive)
 
 
+@router.get("/budgets/analysis")
+def budget_analysis(start: date | None = None, end: date | None = None, mode: str = "native", current_user: User = USER, db: DbSession = DB):
+    day = utcnow().date()
+    return analyse_budgets(db, current_user, start or date(day.year, day.month, 1), end or day, mode)
+
+
 @router.post("/budgets", status_code=status.HTTP_201_CREATED)
 def add_budget(payload: dict[str, Any], current_user: User = USER, db: DbSession = DB):
     return create_budget(db, current_user, payload)
@@ -287,12 +321,6 @@ def edit_budget(budget_id: int, payload: dict[str, Any], current_user: User = US
 @router.post("/budgets/{budget_id}/deactivate")
 def archive_budget(budget_id: int, current_user: User = USER, db: DbSession = DB):
     return deactivate_budget(db, current_user, budget_id)
-
-
-@router.get("/budgets/analysis")
-def budget_analysis(start: date | None = None, end: date | None = None, mode: str = "native", current_user: User = USER, db: DbSession = DB):
-    today = utcnow().date()
-    return analyse_budgets(db, current_user, start or date(today.year, today.month, 1), end or today, mode)
 
 
 @router.get("/saved-views/{screen}")
@@ -316,10 +344,11 @@ def import_preview(payload: dict[str, Any], current_user: User = USER, db: DbSes
     if not account_id:
         raise HTTPException(status_code=400, detail="Destination account is required")
     mapping = payload.get("mapping") or {}
-    rows = _preview_rows(db, current_user, payload.get("csv_text") or "", mapping, account_id)
+    csv_text = payload.get("csv_text") or ""
+    rows = _preview_rows(db, current_user, csv_text, mapping, account_id)
     db.execute(text("INSERT OR REPLACE INTO import_profiles (user_id, source_name, mapping_json, updated_at) VALUES (:user_id, :source, :mapping, :now)"), {"user_id": current_user.id, "source": payload.get("source_name") or "Latest CSV", "mapping": str(mapping), "now": utcnow()})
     db.commit()
-    return {"headers": list(csv.DictReader(io.StringIO((payload.get("csv_text") or "").strip())).fieldnames or []), "rows": [{k: v for k, v in row.items() if k != "amount_cents"} for row in rows], "summary": {"row_count": len(rows), "new": len([r for r in rows if r["status"] == "new"]), "duplicates": len([r for r in rows if "duplicate" in r["status"]]), "matches": len([r for r in rows if r["matches"]]), "invalid": len([r for r in rows if r["errors"]])}}
+    return {"headers": list(csv.DictReader(io.StringIO(csv_text.strip())).fieldnames or []), "rows": [{k: v for k, v in row.items() if k != "amount_cents"} for row in rows], "summary": {"row_count": len(rows), "new": len([r for r in rows if r["status"] == "new"]), "duplicates": len([r for r in rows if "duplicate" in r["status"]]), "matches": len([r for r in rows if r["matches"]), "invalid": len([r for r in rows if r["errors"]])}}
 
 
 @router.post("/imports/commit")
@@ -382,12 +411,13 @@ def accept_match(link_id: int, current_user: User = USER, db: DbSession = DB):
     link = db.execute(text("SELECT * FROM reconciliation_links WHERE id=:id AND user_id=:user_id"), {"id": link_id, "user_id": current_user.id}).mappings().first()
     if not link:
         raise HTTPException(status_code=404, detail="Reconciliation link not found")
-    db.execute(text("UPDATE reconciliation_links SET status='matched', updated_at=:now WHERE id=:id AND user_id=:user_id"), {"id": link_id, "user_id": current_user.id, "now": utcnow()})
-    db.execute(text("UPDATE transactions SET reconciliation_state='matched', updated_at=:now WHERE id=:id AND user_id=:user_id"), {"id": link["transaction_id"], "user_id": current_user.id, "now": utcnow()})
+    now = utcnow()
+    db.execute(text("UPDATE reconciliation_links SET status='matched', updated_at=:now WHERE id=:id AND user_id=:user_id"), {"id": link_id, "user_id": current_user.id, "now": now})
+    db.execute(text("UPDATE transactions SET reconciliation_state='matched', updated_at=:now WHERE id=:id AND user_id=:user_id"), {"id": link["transaction_id"], "user_id": current_user.id, "now": now})
     if link["source_type"] == "bill":
-        db.execute(text("UPDATE bills SET paid_at=:now, resolved_at=:now, remaining_amount_cents=0, updated_at=:now WHERE id=:id AND user_id=:user_id"), {"id": link["source_id"], "user_id": current_user.id, "now": utcnow()})
+        db.execute(text("UPDATE bills SET paid_at=:now, resolved_at=:now, remaining_amount_cents=0, updated_at=:now WHERE id=:id AND user_id=:user_id"), {"id": link["source_id"], "user_id": current_user.id, "now": now})
     if link["source_type"] == "planned_spending":
-        db.execute(text("UPDATE planned_spending SET status='purchased', purchased_at=:now, include_in_forecast=0, updated_at=:now WHERE id=:id AND user_id=:user_id"), {"id": link["source_id"], "user_id": current_user.id, "now": utcnow()})
+        db.execute(text("UPDATE planned_spending SET status='purchased', purchased_at=:now, include_in_forecast=0, updated_at=:now WHERE id=:id AND user_id=:user_id"), {"id": link["source_id"], "user_id": current_user.id, "now": now})
     db.commit()
     return {"status": "matched", "link_id": link_id}
 
