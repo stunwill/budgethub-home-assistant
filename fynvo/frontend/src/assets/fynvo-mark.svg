@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Fynvo F mark">
+  <rect width="512" height="512" rx="112" fill="#f8fbff"/>
+  <defs>
+    <linearGradient id="blue" x1="125" y1="70" x2="372" y2="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0794ff"/>
+      <stop offset="0.54" stop-color="#0066e8"/>
+      <stop offset="1" stop-color="#061041"/>
+    </linearGradient>
+    <linearGradient id="deep" x1="190" y1="170" x2="290" y2="390" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#062979"/>
+      <stop offset="1" stop-color="#061041"/>
+    </linearGradient>
+  </defs>
+  <path d="M195 72h220c0 48-23 81-61 99-18 9-39 13-63 13h-59c-13 0-18 5-20 19l-4 40h187c0 47-20 81-57 103-22 13-48 20-79 20h-70c-11 0-16 5-18 16l-5 34c-12 66-48 108-111 126l30-269c6-56 27-101 64-134 31-27 70-41 116-41h150c0 50-23 85-62 104-19 9-40 14-64 14h-75c-13 0-18 5-20 19l-3 26c33-36 72-54 116-54h92c0 42-18 75-52 98-20 14-45 21-74 21h-75c-10 0-15 4-17 14l-5 35c-11 66-48 108-110 127l29-270c5-56 27-100 64-133z" fill="url(#blue)"/>
+  <path d="M208 202c31-38 68-57 112-57h-18c-52 0-92 20-121 60-14 20-24 45-29 75l-18 151c37-21 58-56 66-105l5-37c4-28 12-57 23-87z" fill="url(#deep)" opacity="0.92"/>
+</svg>
