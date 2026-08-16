@@ -13,6 +13,7 @@ from app.budget import (
     update_category,
 )
 from app.database import get_engine, get_session_factory, run_migrations
+from fastapi import HTTPException
 from sqlalchemy import text
 
 
@@ -23,7 +24,7 @@ def setup_user(client):
         user_id = db.execute(text("SELECT id FROM users WHERE username='stu'")).scalar()
         user = db.execute(text("SELECT * FROM users WHERE id=:id"), {"id": user_id}).first()
         return db, user
-    except Exception:
+    except RuntimeError:
         db.close()
         raise
 
@@ -52,7 +53,7 @@ def test_category_hierarchy_reparent_and_cycle_prevention(client):
         utilities = create_category(db, user, {"name": "Utilities", "budget_relationship": "shared_parent_pool"})
         electricity = create_category(db, user, {"name": "Electricity", "parent_id": utilities["id"]})
         assert update_category(db, user, electricity["id"], {"name": "Power", "parent_id": utilities["id"]})["path"] == "Utilities > Power"
-        with pytest.raises(Exception):
+        with pytest.raises(HTTPException):
             update_category(db, user, utilities["id"], {"parent_id": electricity["id"]})
     finally:
         db.close()
