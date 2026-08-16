@@ -1,6 +1,5 @@
-from sqlalchemy import text
-
 from app.database import get_engine, run_migrations
+from sqlalchemy import text
 
 
 def test_database_migration_records_schema_version(client):
