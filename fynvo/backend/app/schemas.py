@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date as DateType
 
 from pydantic import BaseModel, Field
 
@@ -79,7 +79,7 @@ class AccountUpdate(BaseModel):
 
 class TransactionCreate(BaseModel):
     account_id: int
-    date: date
+    date: DateType
     amount: str
     transaction_type: str
     description: str = Field(min_length=1, max_length=180)
@@ -93,7 +93,7 @@ class TransactionCreate(BaseModel):
 
 class TransactionUpdate(BaseModel):
     account_id: int | None = None
-    date: date | None = None
+    date: DateType | None = None
     amount: str | None = None
     transaction_type: str | None = None
     description: str | None = Field(default=None, min_length=1, max_length=180)
@@ -108,7 +108,7 @@ class TransactionUpdate(BaseModel):
 class TransferCreate(BaseModel):
     from_account_id: int
     to_account_id: int
-    date: date
+    date: DateType
     amount: str
     description: str = Field(min_length=1, max_length=180)
     notes: str | None = None
@@ -117,7 +117,7 @@ class TransferCreate(BaseModel):
 class TransferUpdate(BaseModel):
     from_account_id: int | None = None
     to_account_id: int | None = None
-    date: date | None = None
+    date: DateType | None = None
     amount: str | None = None
     description: str | None = Field(default=None, min_length=1, max_length=180)
     notes: str | None = None
