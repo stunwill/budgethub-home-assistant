@@ -23,15 +23,20 @@ from .dashboard import get_overview
 from .database import get_db, run_migrations
 from .finance import (
     annual_matrix,
+    cancel_planned,
     create_bill,
     create_income,
+    create_planned,
     create_recurring,
     ensure_seed_data,
     list_bills,
     list_income,
+    list_planned,
     list_recurring,
+    month_week_matrix,
     schedule_summary,
     today_local,
+    update_planned,
 )
 from .ledger import (
     ACCOUNT_TYPES,
@@ -61,6 +66,8 @@ from .schemas import (
     IncomeCreate,
     LoginRequest,
     PasswordChangeRequest,
+    PlannedSpendingCreate,
+    PlannedSpendingUpdate,
     RecurringExpenseCreate,
     SetupRequest,
     TransactionCreate,
@@ -153,7 +160,9 @@ def dashboard_overview(range_days: int = 90, current_user: User = USER_DEPENDENC
     scheduled = schedule_summary(db, current_user, start, start + timedelta(days=range_days))
     bills = list_bills(db, current_user)
     recurring = list_recurring(db, current_user)
+    planned = list_planned(db, current_user)
     overdue_amount = sum(parse_money(item["amount"]) for item in bills if item["status"] == "overdue" and item["amount"] is not None)
+    planned_forecast = sum(parse_money(item["estimated_amount"]) for item in planned if item["include_in_forecast"] and item["status"] in {"planned", "committed"} and item["estimated_amount"] is not None)
     overview.summary.available_cash = position["available_cash"]
     overview.summary.net_position = position["net_position"]
     overview.summary.assets = position["assets"]
@@ -161,17 +170,22 @@ def dashboard_overview(range_days: int = 90, current_user: User = USER_DEPENDENC
     overview.summary.account_count = position["account_count"]
     overview.summary.income = scheduled["income"]
     overview.summary.recurring_bills = scheduled["commitments"]
+    overview.summary.planned_spending = cents_to_decimal(planned_forecast)
     overview.summary.overdue_amount = cents_to_decimal(overdue_amount)
     overview.summary.incomplete_recurring_count = len([item for item in recurring if "incomplete" in item["completeness"]])
+    overview.summary.incomplete_planned_count = len([item for item in planned if item["completeness"] == "incomplete"])
+    overview.summary.planned_item_count = len([item for item in planned if item["status"] != "cancelled"])
+    overview.summary.high_priority_planned_count = len([item for item in planned if item["priority"] == "high" and item["status"] != "cancelled"])
     overview.summary.bills_due_count = len([item for item in bills if item["status"] in {"overdue", "due_today", "due_soon"}])
     overview.recent_transactions = position["recent_transactions"]
     overview.upcoming = [item for item in scheduled["events"] if item.get("status") != "paid"][:12]
+    overview.top_planned_spending = [item for item in planned if item["estimated_amount"] is not None and item["status"] != "cancelled"][:5]
     overview.quick_stats = [
         {"label": "Incomplete recurring records", "value": overview.summary.incomplete_recurring_count},
-        {"label": "Bills due or overdue", "value": overview.summary.bills_due_count},
+        {"label": "Incomplete planned items", "value": overview.summary.incomplete_planned_count},
         {"label": "Scheduled net movement", "value": scheduled["net"]},
     ]
-    overview.empty_state = "Income, recurring expenses and bills are now powering this overview."
+    overview.empty_state = "Income, recurring expenses, bills and planned spending are powering this overview."
     return overview
 
 
@@ -272,12 +286,37 @@ def add_bill(payload: BillCreate, current_user: User = USER_DEPENDENCY, db: DbSe
     return create_bill(db, current_user, payload)
 
 
+@app.get("/api/planned-spending")
+def planned_spending(filter: str = "all", search: str | None = None, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return list_planned(db, current_user, filter, search)
+
+
+@app.post("/api/planned-spending", status_code=status.HTTP_201_CREATED)
+def add_planned_spending(payload: PlannedSpendingCreate, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return create_planned(db, current_user, payload)
+
+
+@app.put("/api/planned-spending/{planned_id}")
+def edit_planned_spending(planned_id: int, payload: PlannedSpendingUpdate, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return update_planned(db, current_user, planned_id, payload)
+
+
+@app.post("/api/planned-spending/{planned_id}/cancel")
+def cancel_planned_spending(planned_id: int, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return cancel_planned(db, current_user, planned_id)
+
+
 @app.get("/api/schedule")
 def schedule(view: str = "month", start: date | None = None, end: date | None = None, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
     start = start or today_local()
     if end is None:
         end = start + timedelta(days=7 if view == "week" else 28 if view == "pay_cycle" else 31)
     return schedule_summary(db, current_user, start, end)
+
+
+@app.get("/api/schedule/month/{year}/{month}")
+def schedule_month(year: int, month: int, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return month_week_matrix(db, current_user, year, month)
 
 
 @app.get("/api/schedule/year/{year}")
