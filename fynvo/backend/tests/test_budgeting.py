@@ -29,14 +29,15 @@ def setup_user(client):
         raise
 
 
-def test_budget_migration_schema_version_seven(client):
+def test_budget_migration_schema_version_eight(client):
     run_migrations()
     with get_engine().begin() as connection:
-        assert connection.execute(text("SELECT max(version) FROM schema_version")).scalar() == 7
+        assert connection.execute(text("SELECT max(version) FROM schema_version")).scalar() == 8
         tables = connection.execute(text("SELECT name FROM sqlite_master WHERE type='table'")).scalars().all()
     assert "budgets" in tables
     assert "categories" in tables
     assert "saved_views" in tables
+    assert "import_batches" in tables
 
 
 def test_weekly_monthly_quarterly_annual_and_true_fortnight_periods():

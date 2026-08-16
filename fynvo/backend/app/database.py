@@ -48,10 +48,7 @@ def run_migrations() -> None:
     )
 
     engine = get_engine()
-    Base.metadata.create_all(
-        bind=engine,
-        tables=[User.__table__, Session.__table__, LoginAttempt.__table__, AppConfig.__table__, Account.__table__, Transfer.__table__, Transaction.__table__],
-    )
+    Base.metadata.create_all(bind=engine, tables=[User.__table__, Session.__table__, LoginAttempt.__table__, AppConfig.__table__, Account.__table__, Transfer.__table__, Transaction.__table__])
     with engine.begin() as connection:
         connection.execute(text("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)"))
         connection.execute(text("""
@@ -153,15 +150,52 @@ def run_migrations() -> None:
                 FOREIGN KEY(user_id) REFERENCES users(id)
             )
         """))
+        connection.execute(text("""
+            CREATE TABLE IF NOT EXISTS edit_history (
+                id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, record_type VARCHAR(80) NOT NULL,
+                record_id INTEGER NOT NULL, original_json TEXT NOT NULL, updated_json TEXT NOT NULL,
+                source VARCHAR(40) NOT NULL DEFAULT 'ui', created_at DATETIME NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+        """))
+        connection.execute(text("""
+            CREATE TABLE IF NOT EXISTS import_profiles (
+                id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, source_name VARCHAR(180) NOT NULL,
+                mapping_json TEXT NOT NULL, updated_at DATETIME NOT NULL,
+                UNIQUE(user_id, source_name), FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+        """))
+        connection.execute(text("""
+            CREATE TABLE IF NOT EXISTS import_batches (
+                id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, filename VARCHAR(180) NOT NULL,
+                account_id INTEGER NOT NULL, row_count INTEGER NOT NULL DEFAULT 0,
+                imported_count INTEGER NOT NULL DEFAULT 0, skipped_count INTEGER NOT NULL DEFAULT 0,
+                duplicate_count INTEGER NOT NULL DEFAULT 0, matched_count INTEGER NOT NULL DEFAULT 0,
+                failed_count INTEGER NOT NULL DEFAULT 0, status VARCHAR(40) NOT NULL DEFAULT 'complete',
+                created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(account_id) REFERENCES accounts(id)
+            )
+        """))
+        connection.execute(text("""
+            CREATE TABLE IF NOT EXISTS reconciliation_links (
+                id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, transaction_id INTEGER NOT NULL,
+                source_type VARCHAR(60) NOT NULL, source_id INTEGER NOT NULL,
+                expected_amount_cents INTEGER NOT NULL DEFAULT 0, actual_amount_cents INTEGER NOT NULL DEFAULT 0,
+                variance_cents INTEGER NOT NULL DEFAULT 0, status VARCHAR(40) NOT NULL DEFAULT 'suggested_match',
+                confidence INTEGER NOT NULL DEFAULT 0, created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(transaction_id) REFERENCES transactions(id)
+            )
+        """))
         current = connection.execute(text("SELECT version FROM schema_version ORDER BY version DESC LIMIT 1")).scalar()
         if current is None:
-            connection.execute(text("INSERT INTO schema_version (version) VALUES (7)"))
-        elif current < 7:
-            connection.execute(text("UPDATE schema_version SET version = 7"))
+            connection.execute(text("INSERT INTO schema_version (version) VALUES (8)"))
+        elif current < 8:
+            connection.execute(text("UPDATE schema_version SET version = 8"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_account_date ON transactions(account_id, transaction_date)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_user_type ON transactions(user_id, transaction_type)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_source ON transactions(source)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_user_category_date ON transactions(user_id, category, transaction_date)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_import ON transactions(user_id, import_batch_id, external_id)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_income_user_next ON income_sources(user_id, next_payment_date)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_recurring_user_next ON recurring_expenses(user_id, next_due_date)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_recurring_user_active ON recurring_expenses(user_id, is_active)"))
@@ -176,6 +210,8 @@ def run_migrations() -> None:
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_budgets_user_category ON budgets(user_id, category_id)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_budget_versions_effective ON budget_versions(budget_id, effective_from)"))
         connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_saved_views_unique ON saved_views(user_id, screen, name)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS idx_import_batches_user ON import_batches(user_id, created_at)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS idx_reconciliation_review ON reconciliation_links(user_id, status, confidence)"))
 
 
 def reset_database_for_tests() -> None:
