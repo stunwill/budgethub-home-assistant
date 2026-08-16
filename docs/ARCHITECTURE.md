@@ -1,28 +1,38 @@
 # Fynvo Architecture
 
-Fynvo currently ships as a Home Assistant add-on, but the application is structured to avoid tying the financial domain to Home Assistant.
+Fynvo is a local-first household finance application currently packaged as a Home Assistant add-on.
 
 ## Layers
 
-- Frontend/UI: React/Vite application in `fynvo/frontend`.
-- API: FastAPI application in `fynvo/backend/app`.
-- Authentication: local setup, login, sessions and password management in `auth.py` and `security.py`.
-- Persistence: SQLAlchemy models and SQLite database stored under `/data` in add-on deployments.
-- Financial services: dashboard service in `dashboard.py`, with future account, transaction and forecasting services expected to live beside it.
-- Deployment: Home Assistant metadata and Dockerfile under `fynvo/`.
+- Frontend/UI: React/Vite application served by FastAPI in production.
+- API: FastAPI JSON endpoints under `/api/...`.
+- Authentication: username/password, salted PBKDF2 password hashes and server-side SQLite sessions.
+- Financial domain: account, transaction and transfer ledger services.
+- Persistence: SQLite under `${FYNVO_DATA_DIR}/fynvo.sqlite3`, `/data` in the Home Assistant add-on.
+- Home Assistant deployment: add-on metadata, ingress and Docker packaging.
 
-## Persistence
+The account/transaction ledger intentionally avoids Home Assistant recorder/history so financial records survive recorder purges and remain portable to standalone Docker or hosted deployment.
 
-The SQLite database is stored at `${FYNVO_DATA_DIR}/fynvo.sqlite3`. The Home Assistant add-on sets `FYNVO_DATA_DIR=/data`, so configuration, users and sessions survive container restarts, Home Assistant restarts and add-on upgrades.
+## Accounting convention
 
-## Architectural decisions in v0.2.0
+Asset accounts use normal cash semantics:
 
-- Implemented first-run setup rather than shipping a default password.
-- Used salted PBKDF2 password hashing from the Python standard library to avoid storing plaintext passwords and avoid adding unnecessary cryptographic dependencies early.
-- Stored sessions server-side and only sent opaque HttpOnly cookies to the browser.
-- Kept financial dashboard values empty until account/transaction/forecasting data exists.
-- Added a simple migration foundation using SQLAlchemy table creation plus `schema_version`; a fuller migration tool can be introduced when schema complexity grows.
+```text
+opening balance + income/credits - expenses/debits = current balance
+```
 
-## Future deployment targets
+Liability accounts such as credit cards and loans use balance-owed semantics:
 
-The structure should support standalone Docker, PWA/mobile clients, import worker services, hosted/cloud deployment and Australian CDR/Open Banking integrations without rewriting the core financial domain.
+```text
+opening balance + expenses/debits - income/credits/payments = current balance owed
+```
+
+Transfers are not household income or expenditure. They are stored as one transfer record plus two linked ledger transactions.
+
+## Home Assistant ingress
+
+The backend listens on port `8097`, matching `fynvo/config.yaml` `ingress_port`.
+
+The production frontend is built into `frontend/dist` and copied into the add-on image. The FastAPI server returns the SPA entry point for frontend routes such as `/`, `/login`, `/overview`, `/accounts`, `/transactions` and `/settings`, while `/api/...` remains reserved for backend routes.
+
+The Vite frontend uses a relative base path so assets work behind Home Assistant's generated ingress path.
