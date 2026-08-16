@@ -1,121 +1,166 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import './styles.css';
 
-const navigation = ['Overview', 'Cash Flow', 'Recurring Expenses', 'Income', 'Planned Spending', 'Calendar', 'Categories', 'Reports', 'Settings'];
-const currencyFormatter = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' });
-const dateFormatter = new Intl.DateTimeFormat('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
-
-async function api(path, options = {}) {
-  const response = await fetch(path, {
-    credentials: 'include',
+const api = (path, options = {}) =>
+  fetch(`api${path}`, {
+    credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
     ...options,
   });
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    throw new Error(body.detail || 'Something went wrong');
-  }
-  return response.json();
+
+const nav = ['Overview', 'Accounts', 'Transactions', 'Cash Flow', 'Recurring Expenses', 'Income', 'Planned Spending', 'Calendar', 'Categories', 'Reports', 'Settings'];
+
+function money(value) {
+  return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(Number(value || 0));
 }
 
-function LogoMark() {
-  return <div className="logo-mark" aria-hidden="true">F</div>;
+function Field({ label, ...props }) {
+  return <label className="field"><span>{label}</span><input {...props} /></label>;
 }
 
-function LoginScreen({ setupRequired, onAuthenticated }) {
-  const [mode, setMode] = useState(setupRequired ? 'setup' : 'login');
-  const [form, setForm] = useState({ username: '', display_name: '', password: '' });
+function Empty({ title, children }) {
+  return <div className="empty"><strong>{title}</strong><p>{children}</p></div>;
+}
+
+export default function App() {
+  const [auth, setAuth] = useState(null);
+  const [active, setActive] = useState('Overview');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({ username: '', display_name: '', password: '' });
+  const [overview, setOverview] = useState(null);
+  const [accounts, setAccounts] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const [accountForm, setAccountForm] = useState({ name: '', account_type: 'transaction', institution: '', opening_balance: '0.00' });
+  const [txForm, setTxForm] = useState({ account_id: '', date: new Date().toISOString().slice(0, 10), amount: '', transaction_type: 'expense', description: '' });
 
-  useEffect(() => setMode(setupRequired ? 'setup' : 'login'), [setupRequired]);
+  async function loadAuth() {
+    const res = await api('/auth/state');
+    setAuth(await res.json());
+  }
 
-  async function submit(event) {
-    event.preventDefault();
+  async function loadData() {
+    const [overviewRes, accountsRes, txRes] = await Promise.all([api('/dashboard/overview'), api('/accounts'), api('/transactions')]);
+    if (overviewRes.ok) setOverview(await overviewRes.json());
+    if (accountsRes.ok) setAccounts(await accountsRes.json());
+    if (txRes.ok) setTransactions(await txRes.json());
+  }
+
+  useEffect(() => { loadAuth(); }, []);
+  useEffect(() => { if (auth?.authenticated) loadData(); }, [auth?.authenticated]);
+
+  async function submitAuth(e) {
+    e.preventDefault();
     setError('');
-    setLoading(true);
-    try {
-      const path = mode === 'setup' ? '/api/auth/setup' : '/api/auth/login';
-      const payload = mode === 'setup'
-        ? { username: form.username, display_name: form.display_name || form.username, password: form.password }
-        : { username: form.username, password: form.password };
-      const user = await api(path, { method: 'POST', body: JSON.stringify(payload) });
-      onAuthenticated(user);
-    } catch (error) {
-      setError(error.message);
-    } finally {
-      setLoading(false);
+    const endpoint = auth?.setup_required ? '/auth/setup' : '/auth/login';
+    const payload = auth?.setup_required
+      ? { username: form.username, display_name: form.display_name || form.username, password: form.password }
+      : { username: form.username, password: form.password };
+    const res = await api(endpoint, { method: 'POST', body: JSON.stringify(payload) });
+    if (!res.ok) {
+      setError('Sign-in failed. Check the username and password.');
+      return;
+    }
+    await loadAuth();
+  }
+
+  async function logout() {
+    await api('/auth/logout', { method: 'POST' });
+    setAuth({ authenticated: false, setup_required: false, user: null });
+  }
+
+  async function addAccount(e) {
+    e.preventDefault();
+    const res = await api('/accounts', { method: 'POST', body: JSON.stringify(accountForm) });
+    if (res.ok) {
+      setAccountForm({ name: '', account_type: 'transaction', institution: '', opening_balance: '0.00' });
+      await loadData();
     }
   }
 
-  return (
-    <main className="login-page">
-      <section className="login-card">
-        <LogoMark />
-        <p className="eyebrow">Know what's coming.</p>
-        <h1>{mode === 'setup' ? 'Create your Fynvo admin' : 'Sign in to Fynvo'}</h1>
-        <p className="muted">Your financial dashboard is protected. Sign in before viewing household finance data.</p>
-        <form onSubmit={submit} className="form-stack">
-          <label>Username<input autoComplete="username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required /></label>
-          {mode === 'setup' && <label>Display name<input value={form.display_name} onChange={(e) => setForm({ ...form, display_name: e.target.value })} placeholder="Stu" /></label>}
-          <label>Password<input type="password" autoComplete={mode === 'setup' ? 'new-password' : 'current-password'} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required minLength={mode === 'setup' ? 8 : 1} /></label>
-          {error && <div className="error-state">{error}</div>}
-          <button className="primary-button" disabled={loading}>{loading ? 'Please wait…' : mode === 'setup' ? 'Create admin account' : 'Sign in'}</button>
+  async function addTransaction(e) {
+    e.preventDefault();
+    const res = await api('/transactions', { method: 'POST', body: JSON.stringify({ ...txForm, account_id: Number(txForm.account_id) }) });
+    if (res.ok) {
+      setTxForm({ account_id: '', date: new Date().toISOString().slice(0, 10), amount: '', transaction_type: 'expense', description: '' });
+      await loadData();
+    }
+  }
+
+  if (!auth) return <main className="login"><div className="login-card"><h1>Fynvo</h1><p>Loading...</p></div></main>;
+
+  if (!auth.authenticated) {
+    return (
+      <main className="login">
+        <form className="login-card" onSubmit={submitAuth}>
+          <div className="mark">F</div>
+          <h1>Fynvo</h1>
+          <p>Know what's coming.</p>
+          {auth.setup_required && <p className="notice">Create the first administrator account.</p>}
+          <Field label="Username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
+          {auth.setup_required && <Field label="Display name" value={form.display_name} onChange={(e) => setForm({ ...form, display_name: e.target.value })} />}
+          <Field label="Password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+          {error && <p className="error">{error}</p>}
+          <button className="primary">{auth.setup_required ? 'Create account' : 'Sign in'}</button>
         </form>
-      </section>
-    </main>
-  );
-}
-
-function SummaryCard({ title, value, subtitle }) {
-  return <article className="summary-card"><p>{title}</p><strong>{currencyFormatter.format(value || 0)}</strong><span>{subtitle}</span></article>;
-}
-
-function EmptyState({ title, children }) {
-  return <div className="empty-state"><strong>{title}</strong><p>{children}</p></div>;
-}
-
-function Overview({ user, onLogout }) {
-  const [rangeDays, setRangeDays] = useState(90);
-  const [dashboard, setDashboard] = useState(null);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    setError('');
-    api(`/api/dashboard/overview?range_days=${rangeDays}`).then(setDashboard).catch((error) => setError(error.message));
-  }, [rangeDays]);
-
-  const today = useMemo(() => dateFormatter.format(new Date()), []);
-  const summary = dashboard?.summary || { income: 0, recurring_bills: 0, planned_spending: 0, projected_balance: 0 };
+      </main>
+    );
+  }
 
   return (
-    <div className="app-shell">
+    <div className="shell">
       <aside className="sidebar">
-        <div className="brand-row"><LogoMark /><div><strong>Fynvo</strong><span>Know what's coming.</span></div></div>
-        <nav>{navigation.map((item, index) => <button className={index === 0 ? 'nav-item active' : 'nav-item'} key={item}>{item}</button>)}</nav>
+        <div className="brand"><span className="mark">F</span><div><strong>Fynvo</strong><small>Know what's coming.</small></div></div>
+        <nav>{nav.map((item) => <button key={item} onClick={() => setActive(item)} className={active === item ? 'active' : ''}>{item}</button>)}</nav>
       </aside>
       <main className="content">
-        <header className="page-header">
-          <div><p className="eyebrow">{today}</p><h1>Welcome back, {user.display_name}</h1><p className="muted">Your financial overview is ready. Future modules will feed this dashboard with real household finance data.</p></div>
-          <div className="header-actions"><select value={rangeDays} onChange={(e) => setRangeDays(Number(e.target.value))}><option value="30">Next 30 days</option><option value="60">Next 60 days</option><option value="90">Next 90 days</option></select><button className="secondary-button" onClick={onLogout}>Logout</button></div>
+        <header className="header">
+          <div><p className="eyebrow">Financial ledger</p><h1>{active}</h1><p>Welcome back, {auth.user?.display_name}.</p></div>
+          <button onClick={logout}>Logout</button>
         </header>
-        {error && <div className="error-state">{error}</div>}
-        <section className="summary-grid"><SummaryCard title="Income" value={summary.income} subtitle={`Next ${rangeDays} days`} /><SummaryCard title="Recurring Bills" value={summary.recurring_bills} subtitle="Expected commitments" /><SummaryCard title="Planned Spending" value={summary.planned_spending} subtitle="Included scenarios" /><SummaryCard title="Projected Balance" value={summary.projected_balance} subtitle="Forecast placeholder" /></section>
-        <section className="dashboard-grid">
-          <article className="panel wide"><div className="panel-header"><div><p className="eyebrow">Cash Flow Forecast</p><h2>Projected balance framework</h2></div><button className="link-button">Open Cash Flow</button></div><div className="chart-shell"><div className="axis y-axis">Balance</div><div className="chart-empty">Cash-flow chart will appear once accounts, income and expenses exist.</div><div className="axis x-axis">Time</div></div></article>
-          <article className="panel"><p className="eyebrow">Upcoming</p><h2>Financial events</h2><EmptyState title="No upcoming events yet">Income, recurring bills and planned spending will appear here in future releases.</EmptyState></article>
-          <article className="panel"><p className="eyebrow">Top Planned Spending</p><h2>Planned purchases</h2><EmptyState title="Nothing planned yet">Add planned spending in v0.5.0 to see priority items here.</EmptyState></article>
-          <article className="panel wide"><p className="eyebrow">Quick Stats</p><h2>Financial metrics</h2><div className="stats-row"><EmptyState title="Metrics waiting for data">Average monthly income, recurring expenses, planned spending and surplus will calculate from real data.</EmptyState></div></article>
-        </section>
+        {active === 'Overview' && (
+          <>
+            <section className="cards">
+              <article><span>Available Cash</span><strong>{money(overview?.summary?.available_cash)}</strong></article>
+              <article><span>Assets</span><strong>{money(overview?.summary?.assets)}</strong></article>
+              <article><span>Liabilities</span><strong>{money(overview?.summary?.liabilities)}</strong></article>
+              <article><span>Net Position</span><strong>{money(overview?.summary?.net_position)}</strong></article>
+            </section>
+            <section className="panel"><h2>Recent transactions</h2>{transactions.length ? <TransactionTable rows={transactions.slice(0,5)} /> : <Empty title="No transactions yet">Add an account and record your first transaction.</Empty>}</section>
+          </>
+        )}
+        {active === 'Accounts' && (
+          <section className="panel">
+            <h2>Accounts</h2>
+            <form className="grid-form" onSubmit={addAccount}>
+              <Field label="Name" value={accountForm.name} onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })} />
+              <label className="field"><span>Type</span><select value={accountForm.account_type} onChange={(e) => setAccountForm({ ...accountForm, account_type: e.target.value })}><option value="transaction">Transaction / Everyday</option><option value="savings">Savings</option><option value="credit_card">Credit Card</option><option value="cash">Cash</option><option value="mortgage">Mortgage</option><option value="personal_loan">Personal Loan</option><option value="vehicle_loan">Vehicle Loan</option><option value="other_asset">Other Asset</option><option value="other_liability">Other Liability</option></select></label>
+              <Field label="Institution" value={accountForm.institution} onChange={(e) => setAccountForm({ ...accountForm, institution: e.target.value })} />
+              <Field label="Opening balance" value={accountForm.opening_balance} onChange={(e) => setAccountForm({ ...accountForm, opening_balance: e.target.value })} />
+              <button className="primary">Add account</button>
+            </form>
+            {accounts.length ? <div className="account-list">{accounts.map((account) => <article className="row-card" key={account.id}><div><strong>{account.name}</strong><span>{account.account_type} · {account.institution || 'No institution'}</span></div><strong>{money(account.current_balance)}</strong></article>)}</div> : <Empty title="No accounts yet">Create the first account to start the ledger.</Empty>}
+          </section>
+        )}
+        {active === 'Transactions' && (
+          <section className="panel">
+            <h2>Transactions</h2>
+            <form className="grid-form" onSubmit={addTransaction}>
+              <label className="field"><span>Account</span><select value={txForm.account_id} onChange={(e) => setTxForm({ ...txForm, account_id: e.target.value })}><option value="">Select account</option>{accounts.map((a) => <option value={a.id} key={a.id}>{a.name}</option>)}</select></label>
+              <Field label="Date" type="date" value={txForm.date} onChange={(e) => setTxForm({ ...txForm, date: e.target.value })} />
+              <label className="field"><span>Type</span><select value={txForm.transaction_type} onChange={(e) => setTxForm({ ...txForm, transaction_type: e.target.value })}><option value="expense">Expense / Debit</option><option value="income">Income / Credit</option></select></label>
+              <Field label="Amount" value={txForm.amount} onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })} />
+              <Field label="Description" value={txForm.description} onChange={(e) => setTxForm({ ...txForm, description: e.target.value })} />
+              <button className="primary">Add transaction</button>
+            </form>
+            {transactions.length ? <TransactionTable rows={transactions} /> : <Empty title="No transactions yet">Transactions represent actual financial activity.</Empty>}
+          </section>
+        )}
+        {!['Overview', 'Accounts', 'Transactions'].includes(active) && <section className="panel"><Empty title={`${active} is planned`}>This module is listed in the roadmap and will be implemented in a future release.</Empty></section>}
       </main>
     </div>
   );
 }
 
-export default function App() {
-  const [state, setState] = useState({ loading: true, authenticated: false, setup_required: false, user: null });
-  useEffect(() => { api('/api/auth/state').then((data) => setState({ loading: false, ...data })).catch(() => setState({ loading: false, authenticated: false, setup_required: true, user: null })); }, []);
-  async function logout() { await api('/api/auth/logout', { method: 'POST' }); setState({ loading: false, authenticated: false, setup_required: false, user: null }); }
-  if (state.loading) return <main className="loading-screen"><LogoMark /><p>Loading Fynvo…</p></main>;
-  if (!state.authenticated) return <LoginScreen setupRequired={state.setup_required} onAuthenticated={(user) => setState({ loading: false, authenticated: true, setup_required: false, user })} />;
-  return <Overview user={state.user} onLogout={logout} />;
+function TransactionTable({ rows }) {
+  return <div className="table"><div className="thead"><span>Date</span><span>Description</span><span>Account</span><span>Amount</span></div>{rows.map((row) => <div className="tr" key={row.id}><span>{row.date}</span><span>{row.description}</span><span>{row.account_name}</span><strong className={Number(row.amount) >= 0 ? 'positive' : 'negative'}>{money(row.amount)}</strong></div>)}</div>;
 }

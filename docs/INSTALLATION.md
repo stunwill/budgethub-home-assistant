@@ -1,21 +1,46 @@
-# Fynvo Installation
+# Fynvo Installation and Manual Verification
 
-## Home Assistant add-on repository
+## Repository
 
-Add the repository to Home Assistant using:
+Use the renamed repository:
 
 ```text
 https://github.com/stunwill/fynvo-home-assistant
 ```
 
-The repository root contains `repository.yaml`, and the add-on lives in the `fynvo/` folder.
+## First run
 
-## First launch
+1. Install the Fynvo add-on in Home Assistant.
+2. Start the add-on.
+3. Open the Web UI.
+4. Create the first administrator account.
+5. Sign in.
+6. Confirm the Overview dashboard loads.
 
-After installation, open Fynvo from Home Assistant. The first launch shows the initial administrator setup screen. Create a username and password, then sign in.
+## v0.3.0 manual Home Assistant verification
 
-## Existing BudgetHub pre-release installations
+Use this as the release-blocking manual test:
 
-Fynvo was renamed from BudgetHub before a stable release. The Home Assistant add-on slug is now `fynvo`. If you previously installed a pre-release BudgetHub add-on, remove the old pre-release add-on entry before installing Fynvo.
+```text
+Home Assistant
+→ Settings
+→ Add-ons
+→ Fynvo
+→ Open Web UI
+→ Fynvo login loads
+→ Login succeeds
+→ Overview dashboard loads
+→ Accounts loads
+→ Transactions load
+→ Refreshing the browser continues to work
+```
 
-No production financial-data migration is currently required because real financial modules have not shipped yet.
+Also verify any configured Home Assistant sidebar entry opens Fynvo.
+
+Expected backend health endpoint:
+
+```text
+/api/health
+```
+
+This endpoint must not require authentication and should return the current Fynvo version.

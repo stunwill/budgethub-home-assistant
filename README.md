@@ -1,48 +1,61 @@
 # Fynvo
 
-**Know what's coming.**
+**Fynvo** is a Home Assistant add-on for household cash-flow forecasting, accounts, transactions, recurring expenses, planned spending and future financial insight.
 
-Fynvo is a Home Assistant add-on for household cash-flow forecasting, recurring expenses, recurring income, planned purchases and future financial overview.
+> Know what's coming.
 
-## v0.2.0 scope
+## Current release
 
-This combined release establishes the Fynvo product foundation and dashboard:
+Current development target: **v0.3.0 Accounts & Transactions**.
 
-- Fynvo rebrand across the app, API and documentation
-- Home Assistant add-on packaging
-- FastAPI backend and React/Vite frontend
-- SQLite persistence under the add-on `/data` directory
-- first-run admin setup
-- username/password login
-- secure PBKDF2 password hashing
-- server-side session enforcement with HttpOnly cookies
-- logout and password change
-- protected dashboard API
-- responsive financial overview shell
-- dashboard empty states for future financial modules
-- AUD and Australia/Melbourne defaults
+v0.3.0 adds the core financial ledger:
 
-## First user setup
-
-On first launch, Fynvo shows a setup screen. Create the initial administrator account there. The password is stored as a salted PBKDF2 hash in the local SQLite database and is never stored in plaintext.
-
-After setup, the dashboard and protected API endpoints require authentication. Sessions are stored server-side and survive container restarts because the SQLite database is stored under `/data`.
+- accounts;
+- opening balances;
+- calculated balances;
+- manual income and expense transactions;
+- account-to-account transfers;
+- running balances;
+- dashboard financial position using real account data;
+- release changelog requirements.
 
 ## Architecture
 
-Fynvo is structured so the financial domain is not unnecessarily tied to Home Assistant:
+- FastAPI backend
+- React/Vite frontend
+- SQLite database stored under `/data`
+- Docker-based Home Assistant add-on
+- Home Assistant Ingress UI
 
-- `fynvo/frontend` - React application shell and dashboard UI
-- `fynvo/backend/app` - FastAPI API, authentication and service layer
-- `fynvo/backend/tests` - backend tests
-- `fynvo/config.yaml` and `fynvo/build.yaml` - Home Assistant add-on metadata
-- `docs/FYNVO_PRODUCT_ROADMAP.md` - canonical roadmap
+The financial domain is intentionally kept separate from Home Assistant deployment concerns so Fynvo can later support standalone Docker, PWA/mobile clients, external integrations, CSV import, Australian Open Banking/CDR and hosted deployment.
 
-The architecture is intended to support future standalone Docker, PWA/mobile clients, bank import services, hosted/cloud deployment and Australian Open Banking/CDR.
+## Authentication
 
-## Security notes
+Fynvo requires authentication before access to financial information.
 
-Fynvo v0.2.0 provides local username/password authentication, server-side sessions, password hashing, session expiry and brute-force protection. It does not yet include MFA, passkeys, roles, Home Assistant authentication integration or SSO.
+On first run, create the initial administrator account through the Fynvo setup screen. Fynvo stores salted PBKDF2 password hashes and server-side sessions in SQLite.
+
+## Home Assistant installation
+
+Add this repository to Home Assistant:
+
+```text
+https://github.com/stunwill/fynvo-home-assistant
+```
+
+Then install and open the **Fynvo** add-on.
+
+## Changelog and releases
+
+Starting with v0.3.0, every release must include:
+
+- `CHANGELOG.md` entry;
+- Home Assistant-visible release notes;
+- Git tag;
+- GitHub Release;
+- user-readable release notes.
+
+See `docs/RELEASE_PROCESS.md`.
 
 ## Roadmap
 

@@ -1,9 +1,10 @@
 from contextlib import asynccontextmanager
+from datetime import date
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session as DbSession
 
@@ -20,13 +21,36 @@ from .auth import (
 from .config import APP_VERSION
 from .dashboard import get_overview
 from .database import get_db, run_migrations
+from .ledger import (
+    ACCOUNT_TYPES,
+    archive_account,
+    create_account,
+    create_transaction,
+    create_transfer,
+    dashboard_position,
+    delete_transaction,
+    delete_transfer,
+    get_account,
+    update_transfer,
+    list_accounts,
+    list_transactions,
+    running_transactions,
+    update_account,
+    update_transaction,
+)
 from .models import User
 from .schemas import (
+    AccountCreate,
+    AccountUpdate,
     AuthStateResponse,
     DashboardResponse,
     LoginRequest,
     PasswordChangeRequest,
     SetupRequest,
+    TransactionCreate,
+    TransactionUpdate,
+    TransferCreate,
+    TransferUpdate,
     UserResponse,
 )
 from .security import hash_password, verify_password
@@ -41,20 +65,8 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(
-    title="Fynvo API",
-    version=APP_VERSION,
-    description="Fynvo household cash-flow forecasting API.",
-    lifespan=lifespan,
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[],
-    allow_credentials=True,
-    allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
-)
+app = FastAPI(title="Fynvo API", version=APP_VERSION, description="Fynvo household cash-flow forecasting API.", lifespan=lifespan)
+app.add_middleware(CORSMiddleware, allow_origins=[], allow_credentials=True, allow_methods=["GET", "POST", "PUT", "DELETE"], allow_headers=["Content-Type"])
 
 
 def public_user(user: User) -> UserResponse:
@@ -72,11 +84,7 @@ def version() -> dict[str, str]:
 
 
 @app.get("/api/auth/state", response_model=AuthStateResponse)
-def auth_state(
-    response: Response,
-    db: DbSession = DB_DEPENDENCY,
-    session_token: str | None = SESSION_COOKIE,
-):
+def auth_state(response: Response, db: DbSession = DB_DEPENDENCY, session_token: str | None = SESSION_COOKIE):
     try:
         user = get_current_user(response=response, db=db, session_token=session_token)
         return AuthStateResponse(authenticated=True, setup_required=False, user=public_user(user))
@@ -99,11 +107,7 @@ def login(payload: LoginRequest, request: Request, response: Response, db: DbSes
 
 
 @app.post("/api/auth/logout")
-def logout(
-    response: Response,
-    db: DbSession = DB_DEPENDENCY,
-    session_token: str | None = SESSION_COOKIE,
-):
+def logout(response: Response, db: DbSession = DB_DEPENDENCY, session_token: str | None = SESSION_COOKIE):
     revoke_current_session(response, db, session_token)
     return {"status": "ok"}
 
@@ -114,11 +118,7 @@ def me(current_user: User = USER_DEPENDENCY):
 
 
 @app.post("/api/auth/change-password")
-def change_password(
-    payload: PasswordChangeRequest,
-    current_user: User = USER_DEPENDENCY,
-    db: DbSession = DB_DEPENDENCY,
-):
+def change_password(payload: PasswordChangeRequest, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
     if not verify_password(payload.current_password, current_user.password_hash):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
     current_user.password_hash = hash_password(payload.new_password)
@@ -127,19 +127,103 @@ def change_password(
 
 
 @app.get("/api/dashboard/overview", response_model=DashboardResponse)
-def dashboard_overview(range_days: int = 90, current_user: User = USER_DEPENDENCY):
+def dashboard_overview(range_days: int = 90, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
     if range_days not in (30, 60, 90):
         range_days = 90
-    return get_overview(range_days)
+    overview = get_overview(range_days)
+    position = dashboard_position(db, current_user)
+    overview.summary.available_cash = position["available_cash"]
+    overview.summary.net_position = position["net_position"]
+    overview.summary.assets = position["assets"]
+    overview.summary.liabilities = position["liabilities"]
+    overview.summary.account_count = position["account_count"]
+    overview.recent_transactions = position["recent_transactions"]
+    if position["account_count"]:
+        overview.empty_state = "Accounts and transactions are now powering this overview."
+    return overview
+
+
+@app.get("/api/accounts/meta")
+def account_meta(current_user: User = USER_DEPENDENCY):
+    return {"account_types": sorted(ACCOUNT_TYPES)}
+
+
+@app.get("/api/accounts")
+def accounts(include_archived: bool = False, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return list_accounts(db, current_user, include_archived)
+
+
+@app.post("/api/accounts", status_code=status.HTTP_201_CREATED)
+def add_account(payload: AccountCreate, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return create_account(db, current_user, payload)
+
+
+@app.get("/api/accounts/{account_id}")
+def account_detail(account_id: int, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    account = get_account(db, current_user, account_id)
+    return {"account": list_accounts(db, current_user, True)[[row["id"] for row in list_accounts(db, current_user, True)].index(account.id)], "transactions": running_transactions(db, current_user, account.id)}
+
+
+@app.put("/api/accounts/{account_id}")
+def edit_account(account_id: int, payload: AccountUpdate, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return update_account(db, current_user, account_id, payload)
+
+
+@app.post("/api/accounts/{account_id}/archive")
+def archive(account_id: int, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return archive_account(db, current_user, account_id)
+
+
+@app.get("/api/transactions")
+def transactions(account_id: int | None = None, transaction_type: str | None = None, date_from: date | None = None, date_to: date | None = None, search: str | None = None, limit: int = Query(100, ge=1, le=500), current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return list_transactions(db, current_user, account_id, transaction_type, date_from, date_to, search, limit)
+
+
+@app.post("/api/transactions", status_code=status.HTTP_201_CREATED)
+def add_transaction(payload: TransactionCreate, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return create_transaction(db, current_user, payload)
+
+
+@app.put("/api/transactions/{transaction_id}")
+def edit_transaction(transaction_id: int, payload: TransactionUpdate, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return update_transaction(db, current_user, transaction_id, payload)
+
+
+@app.delete("/api/transactions/{transaction_id}")
+def remove_transaction(transaction_id: int, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return delete_transaction(db, current_user, transaction_id)
+
+
+@app.post("/api/transfers", status_code=status.HTTP_201_CREATED)
+def add_transfer(payload: TransferCreate, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return create_transfer(db, current_user, payload)
+
+
+@app.put("/api/transfers/{transfer_id}")
+def edit_transfer(transfer_id: int, payload: TransferUpdate, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return update_transfer(db, current_user, transfer_id, payload)
+
+
+@app.delete("/api/transfers/{transfer_id}")
+def remove_transfer(transfer_id: int, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return delete_transfer(db, current_user, transfer_id)
 
 
 frontend_dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
-if frontend_dist.exists():
-    app.mount("/assets", StaticFiles(directory=frontend_dist / "assets"), name="assets")
+index_file = frontend_dist / "index.html"
+assets_dir = frontend_dist / "assets"
 
-    @app.get("/{full_path:path}")
-    def frontend(full_path: str):
-        index = frontend_dist / "index.html"
-        if index.exists():
-            return FileResponse(index)
-        raise HTTPException(status_code=404, detail="Frontend not built")
+if assets_dir.exists():
+    app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+
+@app.get("/{full_path:path}", response_class=HTMLResponse)
+def frontend(full_path: str):
+    if full_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="API route not found")
+    if index_file.exists():
+        return FileResponse(index_file)
+    return HTMLResponse(
+        "<!doctype html><title>Fynvo</title><main><h1>Fynvo</h1><p>Frontend assets are not built yet.</p></main>",
+        status_code=200,
+    )
