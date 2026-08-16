@@ -41,7 +41,7 @@ USER = Depends(get_current_user)
 RECONCILIATION_STATUSES = {"unmatched", "suggested_match", "matched", "ignored", "duplicate", "needs_review"}
 
 
-def _row_object(row: Any) -> Any:
+def _obj(row: Any) -> Any:
     return SimpleNamespace(**dict(row)) if hasattr(row, "keys") else row
 
 
@@ -50,13 +50,13 @@ def _as_date(value: Any) -> date | None:
         return None
     if isinstance(value, date):
         return value
-    text_value = str(value).strip()
+    value = str(value).strip()
     for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d/%m/%y"):
         try:
-            return datetime.strptime(text_value, fmt).replace(tzinfo=UTC).date()
+            return datetime.strptime(value, fmt).replace(tzinfo=UTC).date()
         except ValueError:
             continue
-    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid Australian date: {text_value}")
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid Australian date: {value}")
 
 
 def _parse_csv_date(value: str) -> tuple[date | None, str | None]:
@@ -120,12 +120,12 @@ def _find_duplicates(db: DbSession, user: User, account_id: int, tx_date: date, 
         """),
         {"user_id": user.id, "account_id": account_id, "amount": amount_cents, "start": tx_date - timedelta(days=2), "end": tx_date + timedelta(days=2)},
     ).mappings().all()
-    results = []
     normal = _normalise_text(description).lower()
+    results = []
     for row in rows:
         ratio = SequenceMatcher(None, normal, _normalise_text(row["description"]).lower()).ratio()
-        status_value = "exact_duplicate" if row["transaction_date"] == tx_date and ratio > 0.94 else "likely_duplicate" if ratio > 0.72 else "potential_match"
-        results.append({"id": row["id"], "status": status_value, "description": row["description"], "date": str(row["transaction_date"]), "amount": cents_to_decimal(abs(row["amount_cents"])), "confidence": round(ratio * 100)})
+        duplicate_status = "exact_duplicate" if row["transaction_date"] == tx_date and ratio > 0.94 else "likely_duplicate" if ratio > 0.72 else "potential_match"
+        results.append({"id": row["id"], "status": duplicate_status, "description": row["description"], "date": str(row["transaction_date"]), "amount": cents_to_decimal(abs(row["amount_cents"])), "confidence": round(ratio * 100)})
     return results
 
 
@@ -136,33 +136,21 @@ def _suggest_category(db: DbSession, user: User, description: str) -> str | None
     row = db.execute(
         text("""
             SELECT category FROM transactions
-            WHERE user_id=:user_id AND category IS NOT NULL
-              AND lower(description) LIKE :needle
+            WHERE user_id=:user_id AND category IS NOT NULL AND lower(description) LIKE :needle
             ORDER BY updated_at DESC LIMIT 1
         """),
         {"user_id": user.id, "needle": f"%{normal.split()[0]}%"},
     ).mappings().first()
     if row:
         return row["category"]
-    known = [
-        ("woolworths", "Groceries > Supermarket"),
-        ("coles", "Groceries > Supermarket"),
-        ("powershop", "Utilities > Electricity"),
-        ("telstra", "Utilities > Internet"),
-        ("vicroads", "Transport > Car > Registration"),
-        ("budget direct", "Transport > Car > Insurance"),
-    ]
+    known = [("woolworths", "Groceries > Supermarket"), ("coles", "Groceries > Supermarket"), ("powershop", "Utilities > Electricity"), ("telstra", "Utilities > Internet"), ("vicroads", "Transport > Car > Registration"), ("budget direct", "Transport > Car > Insurance")]
     return next((category for key, category in known if key in normal), None)
 
 
 def _matches(db: DbSession, user: User, tx_date: date, amount_cents: int, description: str, category: str | None) -> list[dict]:
     normal = _normalise_text(description).lower()
     candidates = []
-    sources = [
-        ("bills", "bill", "due_date", "remaining_amount_cents", "name", "bill_type"),
-        ("recurring_expenses", "recurring_expense", "next_due_date", "amount_cents", "name", "category"),
-        ("planned_spending", "planned_spending", "planned_date", "estimated_amount_cents", "name", "category"),
-    ]
+    sources = [("bills", "bill", "due_date", "remaining_amount_cents", "name", "bill_type"), ("recurring_expenses", "recurring_expense", "next_due_date", "amount_cents", "name", "category"), ("planned_spending", "planned_spending", "planned_date", "estimated_amount_cents", "name", "category")]
     for table, label, date_col, amount_col, name_col, type_col in sources:
         rows = db.execute(
             text(f"""
@@ -210,18 +198,8 @@ def _preview_rows(db: DbSession, user: User, csv_text: str, mapping: dict[str, s
     return rows
 
 
-def _serialise_batch(row: Any) -> dict:
-    return {"id": row.id, "filename": row.filename, "account_id": row.account_id, "row_count": row.row_count, "imported_count": row.imported_count, "skipped_count": row.skipped_count, "duplicate_count": row.duplicate_count, "matched_count": row.matched_count, "failed_count": row.failed_count, "status": row.status, "created_at": str(row.created_at)}
-
-
 def _record_edit(db: DbSession, user: User, record_type: str, record_id: int, original: dict, updated: dict, source: str = "ui") -> None:
-    db.execute(
-        text("""
-            INSERT INTO edit_history (user_id, record_type, record_id, original_json, updated_json, source, created_at)
-            VALUES (:user_id, :record_type, :record_id, :original, :updated, :source, :now)
-        """),
-        {"user_id": user.id, "record_type": record_type, "record_id": record_id, "original": str(original), "updated": str(updated), "source": source, "now": utcnow()},
-    )
+    db.execute(text("INSERT INTO edit_history (user_id, record_type, record_id, original_json, updated_json, source, created_at) VALUES (:user_id, :record_type, :record_id, :original, :updated, :source, :now)"), {"user_id": user.id, "record_type": record_type, "record_id": record_id, "original": str(original), "updated": str(updated), "source": source, "now": utcnow()})
 
 
 def _update_table_record(db: DbSession, user: User, table: str, record_id: int, allowed: set[str], payload: dict[str, Any], amount_fields: dict[str, str] | None = None) -> Any:
@@ -233,7 +211,7 @@ def _update_table_record(db: DbSession, user: User, table: str, record_id: int, 
         if api_name in payload:
             data[column] = parse_money(payload[api_name]) if payload[api_name] not in (None, "") else None
     if not data:
-        return _row_object(existing)
+        return _obj(existing)
     values = {"id": record_id, "user_id": user.id, "now": utcnow()}
     assignments = []
     for key, value in data.items():
@@ -243,7 +221,7 @@ def _update_table_record(db: DbSession, user: User, table: str, record_id: int, 
     db.execute(text(f"UPDATE {table} SET {', '.join(assignments)} WHERE id=:id AND user_id=:user_id"), values)
     updated = db.execute(text(f"SELECT * FROM {table} WHERE id=:id AND user_id=:user_id"), {"id": record_id, "user_id": user.id}).mappings().first()
     _record_edit(db, user, table, record_id, dict(existing), dict(updated))
-    return _row_object(updated)
+    return _obj(updated)
 
 
 @router.put("/income/{income_id}")
@@ -277,7 +255,7 @@ def edit_bill(bill_id: int, payload: dict[str, Any], current_user: User = USER, 
     if status_value in {"paid", "resolved"}:
         now = utcnow()
         db.execute(text("UPDATE bills SET paid_at=:paid, resolved_at=:resolved, remaining_amount_cents=0, updated_at=:now WHERE id=:id AND user_id=:user_id"), {"id": bill_id, "user_id": current_user.id, "paid": now if status_value == "paid" else None, "resolved": now, "now": now})
-        row = _row_object(db.execute(text("SELECT * FROM bills WHERE id=:id AND user_id=:user_id"), {"id": bill_id, "user_id": current_user.id}).mappings().first())
+        row = _obj(db.execute(text("SELECT * FROM bills WHERE id=:id AND user_id=:user_id"), {"id": bill_id, "user_id": current_user.id}).mappings().first())
     db.commit()
     return bill_response(row)
 
@@ -348,7 +326,17 @@ def import_preview(payload: dict[str, Any], current_user: User = USER, db: DbSes
     rows = _preview_rows(db, current_user, csv_text, mapping, account_id)
     db.execute(text("INSERT OR REPLACE INTO import_profiles (user_id, source_name, mapping_json, updated_at) VALUES (:user_id, :source, :mapping, :now)"), {"user_id": current_user.id, "source": payload.get("source_name") or "Latest CSV", "mapping": str(mapping), "now": utcnow()})
     db.commit()
-    return {"headers": list(csv.DictReader(io.StringIO(csv_text.strip())).fieldnames or []), "rows": [{k: v for k, v in row.items() if k != "amount_cents"} for row in rows], "summary": {"row_count": len(rows), "new": len([r for r in rows if r["status"] == "new"]), "duplicates": len([r for r in rows if "duplicate" in r["status"]]), "matches": len([r for r in rows if r["matches"]), "invalid": len([r for r in rows if r["errors"]])}}
+    return {
+        "headers": list(csv.DictReader(io.StringIO(csv_text.strip())).fieldnames or []),
+        "rows": [{k: v for k, v in row.items() if k != "amount_cents"} for row in rows],
+        "summary": {
+            "row_count": len(rows),
+            "new": len([r for r in rows if r["status"] == "new"]),
+            "duplicates": len([r for r in rows if "duplicate" in r["status"]]),
+            "matches": len([r for r in rows if r["matches"]]),
+            "invalid": len([r for r in rows if r["errors"]]),
+        },
+    }
 
 
 @router.post("/imports/commit")
@@ -391,7 +379,7 @@ def import_commit(payload: dict[str, Any], current_user: User = USER, db: DbSess
 @router.get("/imports/history")
 def import_history(current_user: User = USER, db: DbSession = DB):
     rows = db.execute(text("SELECT * FROM import_batches WHERE user_id=:user_id ORDER BY created_at DESC"), {"user_id": current_user.id}).all()
-    return [_serialise_batch(row) for row in rows]
+    return [{"id": row.id, "filename": row.filename, "account_id": row.account_id, "row_count": row.row_count, "imported_count": row.imported_count, "skipped_count": row.skipped_count, "duplicate_count": row.duplicate_count, "matched_count": row.matched_count, "failed_count": row.failed_count, "status": row.status, "created_at": str(row.created_at)} for row in rows]
 
 
 @router.get("/reconciliation/review-queue")
