@@ -2,6 +2,30 @@
 
 All notable Fynvo changes are documented here. Starting with v0.3.0, every release must include a user-readable changelog entry, Home Assistant-visible release notes and GitHub release notes.
 
+## v0.5.0
+
+### Added
+- Added Planned Spending management for wishlist, planned, committed, purchased and cancelled future spending records.
+- Added priority, status, category, merchant/provider, notes, account link and forecast inclusion support for planned spending.
+- Added incomplete Planned Spending handling so unknown amounts and unknown dates remain pending rather than becoming `$0.00` or invented dates.
+- Added Planned Spending API create, edit, cancel/archive and list/filter foundations.
+- Added Planned Spending integration into Overview, Week, Month, Pay Cycle and Year financial views.
+- Added enhanced Month view that breaks a calendar month into Monday-Sunday weekly columns, including partial first/final weeks.
+- Added clickable weekly cells, monthly totals and annual cells so totals can be drilled down to the underlying financial records.
+- Added Fynvo logo, mark and favicon assets for application branding.
+
+### Changed
+- Updated Fynvo version references to v0.5.0.
+- Enhanced the annual matrix so Planned Spending can appear in scheduled financial totals when included in forecast.
+- Updated Overview Top Planned Spending to use real planned-spending data.
+- Updated scheduled totals to separately expose recurring commitments, bills and planned spending.
+
+### Fixed
+- Preserved the distinction between planned spending, bills and actual transactions so planned purchases do not create fake actual transactions.
+
+### Security
+- Planned Spending APIs require the authenticated server-side session and are scoped to the authenticated user.
+
 ## v0.4.0
 
 ### Added
@@ -34,33 +58,14 @@ All notable Fynvo changes are documented here. Starting with v0.3.0, every relea
 ## v0.3.0
 
 ### Added
-- Added account management for transaction, savings, credit-card, cash, loan, mortgage, asset and liability accounts.
-- Added calculated account balances using opening balance plus ledger transactions.
-- Added manual income and expense transactions.
-- Added account-to-account transfers that link both ledger sides and do not count as income or expenditure.
-- Added transaction search/filter foundations by account, date range, type and text.
-- Added running balance support for account detail views.
-- Added dashboard financial-position data from real accounts and transactions.
-- Added transaction metadata fields for future CSV import, reconciliation and recurring-cost discovery.
-- Added mandatory release changelog/release-note process documentation for all future releases.
-
-### Changed
-- Updated Fynvo version references to v0.3.0.
-- Updated the Overview dashboard to use real available cash, assets, liabilities, net position, account count and recent transaction data where available.
-- Updated the roadmap to mark v0.2.0 completed and record v0.3.0 delivered scope.
+- Added account management, calculated balances, manual transactions, account-to-account transfers and dashboard financial-position data.
+- Added transaction metadata foundations for future CSV import, reconciliation and recurring-cost discovery.
 
 ### Fixed
-- Fixed the root application route so `/` deterministically returns the Fynvo application response instead of intermittently returning HTTP 404 when frontend assets are unavailable.
-- Fixed frontend asset handling for Home Assistant ingress by using a relative Vite base path.
-- Added SPA fallback support for implemented and future frontend routes without intercepting `/api/...` routes.
-
-### Security
-- Account and transaction APIs require the authenticated server-side session introduced in v0.2.0.
-- Financial data is scoped to the authenticated user to preserve a clean path toward future household finance.
+- Fixed deterministic root/SPA route handling for Home Assistant ingress.
 
 ## v0.2.0
 
 ### Added
 - Fynvo foundation, authentication, local SQLite persistence and responsive Overview dashboard.
 - First-run administrator setup, username/password login, server-side sessions, logout and password change.
-- Initial architecture, authentication and installation documentation.
