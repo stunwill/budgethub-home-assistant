@@ -1,7 +1,6 @@
-from sqlalchemy import text
-
 from app.database import get_engine, run_migrations
 from app.money import parse_money
+from sqlalchemy import text
 
 
 def setup_user(client):
