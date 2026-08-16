@@ -69,7 +69,7 @@ def test_budget_create_update_history_and_analysis(client):
         assert updated["amount"] == "1100.00"
         db.execute(text("INSERT INTO accounts (user_id,name,account_type,opening_balance_cents,is_active,created_at,updated_at) VALUES (:user_id,'Everyday','transaction',0,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"), {"user_id": user.id})
         account_id = db.execute(text("SELECT id FROM accounts WHERE user_id=:user_id AND name='Everyday'"), {"user_id": user.id}).scalar()
-        db.execute(text("INSERT INTO transactions (user_id,account_id,transaction_date,amount_cents,transaction_type,description,category,source,status,created_at,updated_at) VALUES (:user_id,:account_id,'2026-08-10',68400,'expense','Supermarket','Groceries','manual','cleared',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"), {"user_id": user.id, "account_id": account_id})
+        db.execute(text("INSERT INTO transactions (user_id,account_id,transaction_date,amount_cents,transaction_type,description,category,source,status,reconciliation_state,created_at,updated_at) VALUES (:user_id,:account_id,'2026-08-10',68400,'expense','Supermarket','Groceries','manual','cleared','unmatched',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"), {"user_id": user.id, "account_id": account_id})
         db.commit()
         analysis = analyse_budgets(db, user, start=date(2026, 8, 1), end=date(2026, 8, 31), mode="normalised")
         row = analysis["budgets"][0]
@@ -100,7 +100,7 @@ def test_unbudgeted_category_detection(client):
     try:
         db.execute(text("INSERT INTO accounts (user_id,name,account_type,opening_balance_cents,is_active,created_at,updated_at) VALUES (:user_id,'Everyday','transaction',0,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"), {"user_id": user.id})
         account_id = db.execute(text("SELECT id FROM accounts WHERE user_id=:user_id AND name='Everyday'"), {"user_id": user.id}).scalar()
-        db.execute(text("INSERT INTO transactions (user_id,account_id,transaction_date,amount_cents,transaction_type,description,category,source,status,created_at,updated_at) VALUES (:user_id,:account_id,'2026-08-10',19600,'expense','Cafe','Dining Out','manual','cleared',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"), {"user_id": user.id, "account_id": account_id})
+        db.execute(text("INSERT INTO transactions (user_id,account_id,transaction_date,amount_cents,transaction_type,description,category,source,status,reconciliation_state,created_at,updated_at) VALUES (:user_id,:account_id,'2026-08-10',19600,'expense','Cafe','Dining Out','manual','cleared','unmatched',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"), {"user_id": user.id, "account_id": account_id})
         db.commit()
         analysis = analyse_budgets(db, user, start=date(2026, 8, 1), end=date(2026, 8, 31))
         assert analysis["unbudgeted_categories"][0]["category"] == "Dining Out"
