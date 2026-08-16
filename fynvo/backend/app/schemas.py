@@ -44,6 +44,9 @@ class DashboardSummary(BaseModel):
     account_count: int = 0
     overdue_amount: str = "0.00"
     incomplete_recurring_count: int = 0
+    incomplete_planned_count: int = 0
+    planned_item_count: int = 0
+    high_priority_planned_count: int = 0
     bills_due_count: int = 0
     currency: str = "AUD"
     range_days: int = 90
@@ -170,4 +173,40 @@ class BillCreate(BaseModel):
     account_id: int | None = None
     paid_through_date: DateType | None = None
     recurring_expense_id: int | None = None
+    notes: str | None = None
+
+
+class PlannedSpendingCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=140)
+    description: str | None = None
+    estimated_amount: str | None = None
+    planned_date: DateType | None = None
+    start_date: DateType | None = None
+    end_date: DateType | None = None
+    category: str | None = Field(default=None, max_length=80)
+    account_id: int | None = None
+    merchant: str | None = Field(default=None, max_length=140)
+    priority: str = "medium"
+    status: str = "wishlist"
+    owner_group: str | None = Field(default=None, max_length=80)
+    include_in_forecast: bool = True
+    is_recurring: bool = False
+    notes: str | None = None
+
+
+class PlannedSpendingUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=140)
+    description: str | None = None
+    estimated_amount: str | None = None
+    planned_date: DateType | None = None
+    start_date: DateType | None = None
+    end_date: DateType | None = None
+    category: str | None = Field(default=None, max_length=80)
+    account_id: int | None = None
+    merchant: str | None = Field(default=None, max_length=140)
+    priority: str | None = None
+    status: str | None = None
+    owner_group: str | None = Field(default=None, max_length=80)
+    include_in_forecast: bool | None = None
+    is_recurring: bool | None = None
     notes: str | None = None
