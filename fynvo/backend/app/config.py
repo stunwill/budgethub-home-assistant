@@ -4,7 +4,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-APP_VERSION = "0.4.0"
+APP_VERSION = "0.5.0"
 
 
 class Settings(BaseModel):
