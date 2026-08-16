@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200" role="img" aria-labelledby="title desc">
+  <title id="title">Fynvo logo</title>
+  <desc id="desc">Fynvo blue stylised F mark with navy wordmark, based on the supplied canonical logo.</desc>
+  <rect width="1200" height="1200" fill="#ffffff"/>
+  <defs>
+    <linearGradient id="fynvoBlue" x1="330" y1="240" x2="790" y2="690" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0794ff"/>
+      <stop offset="0.52" stop-color="#0066e8"/>
+      <stop offset="1" stop-color="#031a57"/>
+    </linearGradient>
+    <linearGradient id="fynvoDeep" x1="430" y1="420" x2="650" y2="740" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#062979"/>
+      <stop offset="1" stop-color="#061041"/>
+    </linearGradient>
+  </defs>
+  <path d="M455 230h390c0 75-36 126-91 153-31 15-66 21-105 21H568c-21 0-28 8-30 30l-8 83c-13 130-75 215-188 247l41-407c7-70 33-126 78-163 41-34 90-51 148-51h236c0 78-36 132-96 161-28 14-61 21-99 21H535c-20 0-28 8-31 30l-4 41c52-58 113-88 184-88h154c0 71-31 124-86 159-35 22-75 33-122 33H506c-17 0-25 7-28 24l-7 49c-17 102-72 167-166 196l47-407c8-68 34-121 76-158 8-7 17-14 27-20z" fill="url(#fynvoBlue)"/>
+  <path d="M500 397c47-58 105-86 174-86h-35c-77 0-137 30-180 89-21 29-35 65-43 108l-25 220c55-31 86-82 97-154l8-55c5-37 16-77 34-122z" fill="url(#fynvoDeep)" opacity="0.9"/>
+  <text x="190" y="1020" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="190" font-weight="800" letter-spacing="-4" fill="#06133f">Fynvo</text>
+</svg>
