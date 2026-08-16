@@ -7,9 +7,16 @@ from sqlalchemy.orm import Session as DbSession
 from .auth import get_current_user
 from .budget import analyse_budgets
 from .database import get_db
-from .finance import list_bills, list_income, list_planned, list_recurring, schedule_summary, today_local
+from .finance import (
+    list_bills,
+    list_income,
+    list_planned,
+    list_recurring,
+    schedule_summary,
+    today_local,
+)
 from .forecast import generate_forecast
-from .goals import list_goals, ensure_goals_schema
+from .goals import ensure_goals_schema, list_goals
 from .intelligence import ensure_intelligence_schema
 from .ledger import dashboard_position
 from .models import User
