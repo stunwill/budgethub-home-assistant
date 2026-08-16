@@ -151,7 +151,7 @@ def historical_run_rates(db: DbSession, user: User, weeks: int = 8, forecast_sta
         category = row["category"] or "Uncategorised"
         if category in known or int(row["count"] or 0) < 3:
             continue
-        weekly = abs(int(round((row["total"] or 0) / weeks)))
+        weekly = abs(round((row["total"] or 0) / weeks))
         if weekly > 0:
             rates.append({"category": category, "weekly_amount_cents": weekly, "weekly_amount": cents_to_decimal(weekly), "sample_count": int(row["count"] or 0), "period": f"{weeks} complete weeks", "history_start": history_start.isoformat(), "history_end": history_end.isoformat(), "explanation": f"Based on the previous {weeks} complete weeks."})
     return rates
