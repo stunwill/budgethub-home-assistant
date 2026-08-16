@@ -11,6 +11,7 @@ This roadmap is the canonical development queue for Fynvo. Future development sh
 5. Keep financial calculations clear, auditable and explainable.
 6. Support Australian household finance first while allowing later internationalisation.
 7. Maintain a cohesive Fynvo visual and navigation system across future modules.
+8. Make Budget, Actual, Committed, Planned, Forecast and Scenario explicit in budget analysis.
 
 ## Long-term product direction
 
@@ -140,7 +141,7 @@ Delivered scope:
 
 ### v0.7.0 - Financial Calendar & Category Management
 
-Status: Implemented in the v0.7.0 development PR.
+Status: Completed.
 
 Delivered scope:
 - modern Fynvo dashboard based on the approved visual mock-up;
@@ -154,34 +155,35 @@ Delivered scope:
 - category visibility foundation across transactions, income, recurring expenses, bills and Planned Spending;
 - future navigation locations for Budgeting, Reports, Insights and Scenarios without fake functionality.
 
-Deferred from v0.7.0:
-- persistent category hierarchy editing;
-- full budgeting;
-- full saved scenario management;
-- full reporting and insight engines.
-
 ### v0.8.0 - Advanced Budgeting
 
-Product outcome: explicit Budget vs Planned vs Forecast vs Actual comparisons.
+Status: Implemented in the v0.8.0 development PR.
 
-Planned scope:
-- category budgets by weekly, fortnightly, monthly, quarterly, annual and custom periods;
-- annual limits with allocation/spreading strategies;
-- spend-during-period, spread-weekly, spread-fortnightly, spread-monthly and allocate-to-specific-date strategies;
-- rollover and non-rollover budgets;
-- accumulated category balances;
-- budget remaining, actual spend, planned spend, expected future spend, projected year-end spend and forecast budget variance;
-- sinking-fund compatibility for irregular/annual costs.
+Delivered scope:
+- first-class Budget domain model;
+- expense budgets and income budget/target foundations;
+- weekly, true fortnightly, monthly, quarterly and annual periods;
+- annual allocation strategies for weekly, fortnightly and monthly equivalents;
+- base budget, rollover and effective available budget kept separate;
+- category hierarchy foundation with safe parent/child re-parenting and cycle prevention;
+- budget relationship modes: Independent, Shared Parent Pool and Parent Equals Sum of Children;
+- Budget vs Actual vs Committed vs Planned vs Forecast analysis foundation;
+- current remaining, projected remaining, projected variance, utilisation and period-progress metrics;
+- native-period and normalised date-range analysis foundation;
+- proportional flexible budget calculations for partial periods;
+- discrete scheduled commitments preserved as dated items, not pro-rated;
+- account/category filter architecture;
+- unbudgeted category detection with historical average foundation;
+- transaction/item count foundations for drill-down;
+- Saved Views / View Preferences storage for columns, sorting, filters, account/category selections and future reports;
+- Reset View support;
+- reusable services for future reports/export.
 
-Example:
-
-```text
-Groceries
-Annual Budget: $12,000
-Actual YTD: $8,460
-Forecast YE: $13,280
-Projected over budget: $1,280
-```
+Deferred from v0.8.0:
+- CSV import and reconciliation;
+- full report/export UI;
+- full persistent drag-and-drop table configuration UI;
+- Home Assistant budget sensors.
 
 ### v0.9.0 - CSV Import & Reconciliation
 
