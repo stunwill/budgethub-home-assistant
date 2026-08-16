@@ -31,6 +31,7 @@ from .finance import (
     list_income,
     list_recurring,
     schedule_summary,
+    today_local,
 )
 from .ledger import (
     ACCOUNT_TYPES,
@@ -50,7 +51,7 @@ from .ledger import (
     update_transfer,
 )
 from .models import User
-from .money import parse_money, cents_to_decimal
+from .money import cents_to_decimal, parse_money
 from .schemas import (
     AccountCreate,
     AccountUpdate,
@@ -148,7 +149,7 @@ def dashboard_overview(range_days: int = 90, current_user: User = USER_DEPENDENC
     ensure_seed_data(db, current_user)
     overview = get_overview(range_days)
     position = dashboard_position(db, current_user)
-    start = date.today()
+    start = today_local()
     scheduled = schedule_summary(db, current_user, start, start + timedelta(days=range_days))
     bills = list_bills(db, current_user)
     recurring = list_recurring(db, current_user)
@@ -273,7 +274,7 @@ def add_bill(payload: BillCreate, current_user: User = USER_DEPENDENCY, db: DbSe
 
 @app.get("/api/schedule")
 def schedule(view: str = "month", start: date | None = None, end: date | None = None, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
-    start = start or date.today()
+    start = start or today_local()
     if end is None:
         end = start + timedelta(days=7 if view == "week" else 28 if view == "pay_cycle" else 31)
     return schedule_summary(db, current_user, start, end)
