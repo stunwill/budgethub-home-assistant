@@ -1,7 +1,7 @@
 name: BudgetHub
 version: "0.1.0"
 slug: budgethub
- description: Household budgeting, recurring costs, income, planned spending and cash-flow forecasting.
+description: Household budgeting, recurring costs, income, planned spending and cash-flow forecasting.
 url: https://github.com/stunwill/budgethub-home-assistant
 arch:
   - aarch64
