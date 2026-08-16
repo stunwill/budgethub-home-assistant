@@ -1,5 +1,22 @@
 # Fynvo Add-on Changelog
 
+## v0.8.0
+
+### Added
+- Advanced Budgeting foundations.
+- Expense and income budget/target support.
+- Weekly, fortnightly, monthly, quarterly and annual budget periods.
+- Category hierarchy foundation.
+- Parent/child budget modes.
+- Budget vs Actual vs Committed vs Planned vs Forecast analysis foundation.
+- Rollover-aware budget calculations.
+- Unbudgeted category detection.
+- Saved Views / View Preferences foundation.
+
+### Changed
+- Version updated to 0.8.0.
+- Home Assistant add-on metadata now includes budgeting.
+
 ## v0.7.0
 
 ### Added
