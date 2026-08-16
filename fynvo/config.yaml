@@ -1,7 +1,7 @@
 name: Fynvo
-version: "0.3.0"
+version: "0.4.0"
 slug: fynvo
-description: Household cash-flow forecasting, accounts, transactions and planned spending for Home Assistant.
+description: Household cash-flow forecasting, accounts, transactions, income and recurring bills for Home Assistant.
 url: https://github.com/stunwill/fynvo-home-assistant
 arch:
   - aarch64

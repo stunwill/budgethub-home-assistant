@@ -15,15 +15,12 @@ This roadmap is the canonical development queue for Fynvo. Future development sh
 ## Core product concepts
 
 ### Budget
-
 A budget is how much the user intends or allows themselves to spend for a category, account, household member, period or goal.
 
 ### Planned
-
 Planned is what the user currently expects to spend or receive. Planned entries include known future purchases, forecast income and known recurring commitments.
 
 ### Actual
-
 Actual is what really occurred based on recorded, imported or reconciled transactions. Transactions created in v0.3.0 are actual financial activity, not planned or budget records.
 
 ## Release definition of done from v0.3.0 onward
@@ -38,8 +35,6 @@ Home Assistant application access is a release blocker. Fynvo must open through 
 
 Status: Completed.
 
-Product outcome: product architecture, authentication, rebrand and financial overview.
-
 Delivered scope:
 - complete Fynvo rebrand;
 - Home Assistant add-on foundation;
@@ -48,23 +43,17 @@ Delivered scope:
 - username/password login;
 - secure password hashing;
 - server-side session enforcement;
-- logout and password change;
-- protected financial API endpoints;
 - responsive application shell;
-- Overview dashboard with real-data empty states;
-- AUD and Australia/Melbourne defaults.
+- Overview dashboard with real-data empty states.
 
 ### v0.3.0 - Accounts & Transactions
 
-Status: Implemented in the v0.3.0 development PR.
-
-Product outcome: core financial ledger.
+Status: Completed.
 
 Delivered scope:
 - account management for transaction, savings, credit card, cash, mortgage, personal loan, vehicle loan, other asset and other liability accounts;
 - opening balance and calculated balance model;
-- asset and liability balance semantics documented in code and tests;
-- manual income and expense transactions;
+- manual income and expense transactions as actual financial activity;
 - account-to-account transfers linked through a transfer record and two transaction rows;
 - running balance for account detail views;
 - dashboard financial position using real account data;
@@ -73,18 +62,28 @@ Delivered scope:
 - deterministic SPA/root route behaviour for Home Assistant ingress;
 - permanent release changelog process.
 
-### v0.4.0 - Income & Recurring Expenses
+### v0.4.0 - Income, Recurring Expenses & Bills
 
-Product outcome: predictable household income and commitments.
+Status: Implemented in the v0.4.0 development PR.
 
-Planned scope:
-- recurring income sources;
-- recurring expenses and subscriptions;
-- weekly, fortnightly, monthly, quarterly, six-monthly, annual and custom recurrence rules;
-- next due/payment dates;
-- due-date warnings;
-- archive/inactive states;
-- generation of expected future occurrences.
+Product outcome: predictable household income, recurring commitments and bill visibility.
+
+Delivered scope:
+- income source management;
+- recurring expense management;
+- incomplete recurring records with derived missing-field status;
+- active/inactive records independent of completeness;
+- variable recurring expense flag;
+- bills and financial obligations, including one-off bills and arrears;
+- dynamic due-state calculation for upcoming, due soon, due today, overdue, paid and unknown bills;
+- priority and paid-through date support;
+- weekly, monthly, pay-cycle and annual financial schedule views;
+- Excel-style Jan-Dec annual matrix;
+- monthly aggregate drill-down details so totals are explainable;
+- initial household recurring-expense dataset, including inactive and incomplete records;
+- initial outstanding bills/obligations dataset;
+- dashboard integration for expected income, recurring commitments, bills due, overdue amount and incomplete recurring records;
+- scheduled commitments kept separate from actual transactions so future CSV reconciliation can match expected against actual activity without double-counting.
 
 ### v0.5.0 - Planned Spending
 
@@ -112,51 +111,16 @@ Planned scope:
 - explainable forecast entries.
 
 ### v0.7.0 - Calendar & Categories
-
-Product outcome: financial calendar and reusable classification.
-
-Planned scope:
-- monthly calendar view;
-- transaction/category management;
-- category filters;
-- calendar event detail modal;
-- reusable labels/tags;
-- category-level dashboard summaries.
+Financial calendar, reusable categories, tags and category-level dashboard summaries.
 
 ### v0.8.0 - Budgeting
-
-Product outcome: budget, planned and actual spending management.
-
-Planned scope:
-- category budgets by month/pay cycle;
-- compare budgeted vs planned vs actual;
-- surplus/deficit indicators;
-- rolling budget periods;
-- budget dashboard cards.
+Category budgets by month/pay cycle and budgeted vs planned vs actual comparisons.
 
 ### v0.9.0 - CSV Import & Reconciliation
-
-Product outcome: import bank transactions and compare planned vs actual.
-
-Planned scope:
-- upload bank CSV files;
-- configurable import mappings;
-- duplicate import detection;
-- imported transaction review queue;
-- match imported transactions against expected income, recurring expenses and planned purchases;
-- identify unmatched transactions;
-- compare planned versus actual spending.
+Bank CSV uploads, mapping, duplicate detection, imported transaction review and matching against expected income, recurring expenses and planned purchases.
 
 ### v0.10.0 - Recurring Cost Discovery
-
-Product outcome: detect recurring expenses missing from Fynvo.
-
-Planned scope:
-- analyse imported transaction history;
-- identify likely recurring expenses that have not been entered;
-- recommend recurring-expense creation;
-- confidence indicators and review workflow;
-- ignore/dismiss rules.
+Analyse imported transaction history to identify recurring expenses missing from Fynvo.
 
 ### v0.11.0 - Reports & Analytics
 Trends, comparisons and financial reporting.
@@ -193,4 +157,4 @@ CSV bank transaction imports will eventually be used to:
 - detect likely recurring expenses that have not been entered into Fynvo;
 - recommend creation of new recurring expenses based on transaction history.
 
-The v0.3.0 transaction schema preserves source, raw description, external identifier, import batch, import date, reconciliation state, amount, date, account, category and merchant fields to support these future workflows.
+The v0.3.0 transaction schema preserves source, raw description, external identifier, import batch, import date, reconciliation state, amount, date, account, category and merchant fields to support these future workflows. The v0.4.0 scheduled-finance schema adds providers, aliases, expected dates, recurrence frequency, account/source account text and categories so expected records can later be matched to imported actual transactions.

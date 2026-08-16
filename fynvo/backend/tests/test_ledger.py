@@ -64,14 +64,14 @@ def test_liability_account_semantics(client):
     assert client.get(f"/api/accounts/{card['id']}").json()["account"]["current_balance"] == "100.00"
 
 
-def test_migration_schema_version_three(client):
+def test_migration_schema_version_four(client):
     run_migrations()
     with get_engine().begin() as connection:
-        assert connection.execute(text("SELECT max(version) FROM schema_version")).scalar() == 3
+        assert connection.execute(text("SELECT max(version) FROM schema_version")).scalar() == 4
 
 
 def test_home_assistant_spa_routes_and_api_protection(client):
-    assert client.get("/api/health").json()["version"] == "0.3.0"
+    assert client.get("/api/health").json()["version"] == "0.4.0"
     assert client.get("/").status_code == 200
     assert client.get("/login").status_code == 200
     assert client.get("/accounts").status_code == 200

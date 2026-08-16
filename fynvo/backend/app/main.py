@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
@@ -21,6 +21,18 @@ from .auth import (
 from .config import APP_VERSION
 from .dashboard import get_overview
 from .database import get_db, run_migrations
+from .finance import (
+    annual_matrix,
+    create_bill,
+    create_income,
+    create_recurring,
+    ensure_seed_data,
+    list_bills,
+    list_income,
+    list_recurring,
+    schedule_summary,
+    today_local,
+)
 from .ledger import (
     ACCOUNT_TYPES,
     archive_account,
@@ -39,13 +51,17 @@ from .ledger import (
     update_transfer,
 )
 from .models import User
+from .money import cents_to_decimal, parse_money
 from .schemas import (
     AccountCreate,
     AccountUpdate,
     AuthStateResponse,
+    BillCreate,
     DashboardResponse,
+    IncomeCreate,
     LoginRequest,
     PasswordChangeRequest,
+    RecurringExpenseCreate,
     SetupRequest,
     TransactionCreate,
     TransactionUpdate,
@@ -130,16 +146,32 @@ def change_password(payload: PasswordChangeRequest, current_user: User = USER_DE
 def dashboard_overview(range_days: int = 90, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
     if range_days not in (30, 60, 90):
         range_days = 90
+    ensure_seed_data(db, current_user)
     overview = get_overview(range_days)
     position = dashboard_position(db, current_user)
+    start = today_local()
+    scheduled = schedule_summary(db, current_user, start, start + timedelta(days=range_days))
+    bills = list_bills(db, current_user)
+    recurring = list_recurring(db, current_user)
+    overdue_amount = sum(parse_money(item["amount"]) for item in bills if item["status"] == "overdue" and item["amount"] is not None)
     overview.summary.available_cash = position["available_cash"]
     overview.summary.net_position = position["net_position"]
     overview.summary.assets = position["assets"]
     overview.summary.liabilities = position["liabilities"]
     overview.summary.account_count = position["account_count"]
+    overview.summary.income = scheduled["income"]
+    overview.summary.recurring_bills = scheduled["commitments"]
+    overview.summary.overdue_amount = cents_to_decimal(overdue_amount)
+    overview.summary.incomplete_recurring_count = len([item for item in recurring if "incomplete" in item["completeness"]])
+    overview.summary.bills_due_count = len([item for item in bills if item["status"] in {"overdue", "due_today", "due_soon"}])
     overview.recent_transactions = position["recent_transactions"]
-    if position["account_count"]:
-        overview.empty_state = "Accounts and transactions are now powering this overview."
+    overview.upcoming = [item for item in scheduled["events"] if item.get("status") != "paid"][:12]
+    overview.quick_stats = [
+        {"label": "Incomplete recurring records", "value": overview.summary.incomplete_recurring_count},
+        {"label": "Bills due or overdue", "value": overview.summary.bills_due_count},
+        {"label": "Scheduled net movement", "value": scheduled["net"]},
+    ]
+    overview.empty_state = "Income, recurring expenses and bills are now powering this overview."
     return overview
 
 
@@ -162,10 +194,7 @@ def add_account(payload: AccountCreate, current_user: User = USER_DEPENDENCY, db
 def account_detail(account_id: int, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
     account = get_account(db, current_user, account_id)
     accounts_list = list_accounts(db, current_user, True)
-    return {
-        "account": accounts_list[[row["id"] for row in accounts_list].index(account.id)],
-        "transactions": running_transactions(db, current_user, account.id),
-    }
+    return {"account": accounts_list[[row["id"] for row in accounts_list].index(account.id)], "transactions": running_transactions(db, current_user, account.id)}
 
 
 @app.put("/api/accounts/{account_id}")
@@ -213,6 +242,49 @@ def remove_transfer(transfer_id: int, current_user: User = USER_DEPENDENCY, db: 
     return delete_transfer(db, current_user, transfer_id)
 
 
+@app.get("/api/income")
+def income(current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return list_income(db, current_user)
+
+
+@app.post("/api/income", status_code=status.HTTP_201_CREATED)
+def add_income(payload: IncomeCreate, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return create_income(db, current_user, payload)
+
+
+@app.get("/api/recurring-expenses")
+def recurring_expenses(filter: str = "all", current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return list_recurring(db, current_user, filter)
+
+
+@app.post("/api/recurring-expenses", status_code=status.HTTP_201_CREATED)
+def add_recurring(payload: RecurringExpenseCreate, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return create_recurring(db, current_user, payload)
+
+
+@app.get("/api/bills")
+def bills(filter: str = "all", current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return list_bills(db, current_user, filter)
+
+
+@app.post("/api/bills", status_code=status.HTTP_201_CREATED)
+def add_bill(payload: BillCreate, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return create_bill(db, current_user, payload)
+
+
+@app.get("/api/schedule")
+def schedule(view: str = "month", start: date | None = None, end: date | None = None, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    start = start or today_local()
+    if end is None:
+        end = start + timedelta(days=7 if view == "week" else 28 if view == "pay_cycle" else 31)
+    return schedule_summary(db, current_user, start, end)
+
+
+@app.get("/api/schedule/year/{year}")
+def schedule_year(year: int, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return annual_matrix(db, current_user, year)
+
+
 frontend_dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 index_file = frontend_dist / "index.html"
 assets_dir = frontend_dist / "assets"
@@ -227,7 +299,4 @@ def frontend(full_path: str):
         raise HTTPException(status_code=404, detail="API route not found")
     if index_file.exists():
         return FileResponse(index_file)
-    return HTMLResponse(
-        "<!doctype html><title>Fynvo</title><main><h1>Fynvo</h1><p>Frontend assets are not built yet.</p></main>",
-        status_code=200,
-    )
+    return HTMLResponse("<!doctype html><title>Fynvo</title><main><h1>Fynvo</h1><p>Frontend assets are not built yet.</p></main>", status_code=200)
