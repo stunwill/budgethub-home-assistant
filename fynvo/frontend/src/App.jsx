@@ -2,25 +2,17 @@ import { useEffect, useState } from 'react';
 import './styles.css';
 
 const api = (path, options = {}) =>
-  fetch(`api${path}`, {
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-    ...options,
-  });
+  fetch(`api${path}`, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options });
 
-const nav = ['Overview', 'Accounts', 'Transactions', 'Cash Flow', 'Recurring Expenses', 'Income', 'Planned Spending', 'Calendar', 'Categories', 'Reports', 'Settings'];
+const nav = ['Overview', 'Accounts', 'Transactions', 'Recurring Expenses', 'Income', 'Bills', 'Week', 'Month', 'Pay Cycle', 'Year', 'Planned Spending', 'Settings'];
 
 function money(value) {
+  if (value === null || value === undefined || value === '') return 'Pending';
   return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(Number(value || 0));
 }
-
-function Field({ label, ...props }) {
-  return <label className="field"><span>{label}</span><input {...props} /></label>;
-}
-
-function Empty({ title, children }) {
-  return <div className="empty"><strong>{title}</strong><p>{children}</p></div>;
-}
+function Field({ label, ...props }) { return <label className="field"><span>{label}</span><input {...props} /></label>; }
+function Empty({ title, children }) { return <div className="empty"><strong>{title}</strong><p>{children}</p></div>; }
+function Badge({ children, tone = '' }) { return <span className={`badge ${tone}`}>{children}</span>; }
 
 export default function App() {
   const [auth, setAuth] = useState(null);
@@ -30,137 +22,75 @@ export default function App() {
   const [overview, setOverview] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [income, setIncome] = useState([]);
+  const [recurring, setRecurring] = useState([]);
+  const [bills, setBills] = useState([]);
+  const [schedule, setSchedule] = useState(null);
+  const [matrix, setMatrix] = useState(null);
+  const [modal, setModal] = useState(null);
   const [accountForm, setAccountForm] = useState({ name: '', account_type: 'transaction', institution: '', opening_balance: '0.00' });
   const [txForm, setTxForm] = useState({ account_id: '', date: new Date().toISOString().slice(0, 10), amount: '', transaction_type: 'expense', description: '' });
+  const [incomeForm, setIncomeForm] = useState({ name: '', amount: '', frequency: 'fortnightly', next_payment_date: '', payer: '', category: 'Revenue / Income' });
+  const [recurringForm, setRecurringForm] = useState({ name: '', amount: '', frequency: '', next_due_date: '', category: '', expense_type: '', source_account_text: '', variable_amount: false });
+  const [billForm, setBillForm] = useState({ name: '', provider: '', amount: '', due_date: '', priority: 'normal', bill_type: '' });
 
-  async function loadAuth() {
-    const res = await api('/auth/state');
-    setAuth(await res.json());
-  }
-
+  async function loadAuth() { const res = await api('/auth/state'); setAuth(await res.json()); }
   async function loadData() {
-    const [overviewRes, accountsRes, txRes] = await Promise.all([api('/dashboard/overview'), api('/accounts'), api('/transactions')]);
+    const [overviewRes, accountsRes, txRes, incomeRes, recRes, billsRes] = await Promise.all([api('/dashboard/overview'), api('/accounts'), api('/transactions'), api('/income'), api('/recurring-expenses'), api('/bills')]);
     if (overviewRes.ok) setOverview(await overviewRes.json());
     if (accountsRes.ok) setAccounts(await accountsRes.json());
     if (txRes.ok) setTransactions(await txRes.json());
+    if (incomeRes.ok) setIncome(await incomeRes.json());
+    if (recRes.ok) setRecurring(await recRes.json());
+    if (billsRes.ok) setBills(await billsRes.json());
+  }
+  async function loadSchedule(view) {
+    const res = await api(`/schedule?view=${view}`);
+    if (res.ok) setSchedule(await res.json());
+    const yearRes = await api(`/schedule/year/${new Date().getFullYear()}`);
+    if (yearRes.ok) setMatrix(await yearRes.json());
   }
 
   useEffect(() => { loadAuth(); }, []);
   useEffect(() => { if (auth?.authenticated) loadData(); }, [auth?.authenticated]);
+  useEffect(() => { if (auth?.authenticated && ['Week', 'Month', 'Pay Cycle', 'Year'].includes(active)) loadSchedule(active.toLowerCase().replace(' ', '_')); }, [active, auth?.authenticated]);
 
   async function submitAuth(e) {
-    e.preventDefault();
-    setError('');
+    e.preventDefault(); setError('');
     const endpoint = auth?.setup_required ? '/auth/setup' : '/auth/login';
-    const payload = auth?.setup_required
-      ? { username: form.username, display_name: form.display_name || form.username, password: form.password }
-      : { username: form.username, password: form.password };
+    const payload = auth?.setup_required ? { username: form.username, display_name: form.display_name || form.username, password: form.password } : { username: form.username, password: form.password };
     const res = await api(endpoint, { method: 'POST', body: JSON.stringify(payload) });
-    if (!res.ok) {
-      setError('Sign-in failed. Check the username and password.');
-      return;
-    }
+    if (!res.ok) { setError('Sign-in failed. Check the username and password.'); return; }
     await loadAuth();
   }
-
-  async function logout() {
-    await api('/auth/logout', { method: 'POST' });
-    setAuth({ authenticated: false, setup_required: false, user: null });
-  }
-
-  async function addAccount(e) {
-    e.preventDefault();
-    const res = await api('/accounts', { method: 'POST', body: JSON.stringify(accountForm) });
-    if (res.ok) {
-      setAccountForm({ name: '', account_type: 'transaction', institution: '', opening_balance: '0.00' });
-      await loadData();
-    }
-  }
-
-  async function addTransaction(e) {
-    e.preventDefault();
-    const res = await api('/transactions', { method: 'POST', body: JSON.stringify({ ...txForm, account_id: Number(txForm.account_id) }) });
-    if (res.ok) {
-      setTxForm({ account_id: '', date: new Date().toISOString().slice(0, 10), amount: '', transaction_type: 'expense', description: '' });
-      await loadData();
-    }
-  }
+  async function logout() { await api('/auth/logout', { method: 'POST' }); setAuth({ authenticated: false, setup_required: false, user: null }); }
+  async function addAccount(e) { e.preventDefault(); const res = await api('/accounts', { method: 'POST', body: JSON.stringify(accountForm) }); if (res.ok) { setAccountForm({ name: '', account_type: 'transaction', institution: '', opening_balance: '0.00' }); await loadData(); } }
+  async function addTransaction(e) { e.preventDefault(); const res = await api('/transactions', { method: 'POST', body: JSON.stringify({ ...txForm, account_id: Number(txForm.account_id) }) }); if (res.ok) { setTxForm({ account_id: '', date: new Date().toISOString().slice(0, 10), amount: '', transaction_type: 'expense', description: '' }); await loadData(); } }
+  async function addIncome(e) { e.preventDefault(); const payload = { ...incomeForm, amount: incomeForm.amount || null, next_payment_date: incomeForm.next_payment_date || null }; const res = await api('/income', { method: 'POST', body: JSON.stringify(payload) }); if (res.ok) { setIncomeForm({ name: '', amount: '', frequency: 'fortnightly', next_payment_date: '', payer: '', category: 'Revenue / Income' }); await loadData(); } }
+  async function addRecurring(e) { e.preventDefault(); const payload = { ...recurringForm, amount: recurringForm.amount || null, next_due_date: recurringForm.next_due_date || null }; const res = await api('/recurring-expenses', { method: 'POST', body: JSON.stringify(payload) }); if (res.ok) { setRecurringForm({ name: '', amount: '', frequency: '', next_due_date: '', category: '', expense_type: '', source_account_text: '', variable_amount: false }); await loadData(); } }
+  async function addBill(e) { e.preventDefault(); const payload = { ...billForm, amount: billForm.amount || null, due_date: billForm.due_date || null }; const res = await api('/bills', { method: 'POST', body: JSON.stringify(payload) }); if (res.ok) { setBillForm({ name: '', provider: '', amount: '', due_date: '', priority: 'normal', bill_type: '' }); await loadData(); } }
 
   if (!auth) return <main className="login"><div className="login-card"><h1>Fynvo</h1><p>Loading...</p></div></main>;
+  if (!auth.authenticated) return <main className="login"><form className="login-card" onSubmit={submitAuth}><div className="mark">F</div><h1>Fynvo</h1><p>Know what's coming.</p>{auth.setup_required && <p className="notice">Create the first administrator account.</p>}<Field label="Username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />{auth.setup_required && <Field label="Display name" value={form.display_name} onChange={(e) => setForm({ ...form, display_name: e.target.value })} />}<Field label="Password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />{error && <p className="error">{error}</p>}<button className="primary">{auth.setup_required ? 'Create account' : 'Sign in'}</button></form></main>;
 
-  if (!auth.authenticated) {
-    return (
-      <main className="login">
-        <form className="login-card" onSubmit={submitAuth}>
-          <div className="mark">F</div>
-          <h1>Fynvo</h1>
-          <p>Know what's coming.</p>
-          {auth.setup_required && <p className="notice">Create the first administrator account.</p>}
-          <Field label="Username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
-          {auth.setup_required && <Field label="Display name" value={form.display_name} onChange={(e) => setForm({ ...form, display_name: e.target.value })} />}
-          <Field label="Password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-          {error && <p className="error">{error}</p>}
-          <button className="primary">{auth.setup_required ? 'Create account' : 'Sign in'}</button>
-        </form>
-      </main>
-    );
-  }
-
-  return (
-    <div className="shell">
-      <aside className="sidebar">
-        <div className="brand"><span className="mark">F</span><div><strong>Fynvo</strong><small>Know what's coming.</small></div></div>
-        <nav>{nav.map((item) => <button key={item} onClick={() => setActive(item)} className={active === item ? 'active' : ''}>{item}</button>)}</nav>
-      </aside>
-      <main className="content">
-        <header className="header">
-          <div><p className="eyebrow">Financial ledger</p><h1>{active}</h1><p>Welcome back, {auth.user?.display_name}.</p></div>
-          <button onClick={logout}>Logout</button>
-        </header>
-        {active === 'Overview' && (
-          <>
-            <section className="cards">
-              <article><span>Available Cash</span><strong>{money(overview?.summary?.available_cash)}</strong></article>
-              <article><span>Assets</span><strong>{money(overview?.summary?.assets)}</strong></article>
-              <article><span>Liabilities</span><strong>{money(overview?.summary?.liabilities)}</strong></article>
-              <article><span>Net Position</span><strong>{money(overview?.summary?.net_position)}</strong></article>
-            </section>
-            <section className="panel"><h2>Recent transactions</h2>{transactions.length ? <TransactionTable rows={transactions.slice(0,5)} /> : <Empty title="No transactions yet">Add an account and record your first transaction.</Empty>}</section>
-          </>
-        )}
-        {active === 'Accounts' && (
-          <section className="panel">
-            <h2>Accounts</h2>
-            <form className="grid-form" onSubmit={addAccount}>
-              <Field label="Name" value={accountForm.name} onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })} />
-              <label className="field"><span>Type</span><select value={accountForm.account_type} onChange={(e) => setAccountForm({ ...accountForm, account_type: e.target.value })}><option value="transaction">Transaction / Everyday</option><option value="savings">Savings</option><option value="credit_card">Credit Card</option><option value="cash">Cash</option><option value="mortgage">Mortgage</option><option value="personal_loan">Personal Loan</option><option value="vehicle_loan">Vehicle Loan</option><option value="other_asset">Other Asset</option><option value="other_liability">Other Liability</option></select></label>
-              <Field label="Institution" value={accountForm.institution} onChange={(e) => setAccountForm({ ...accountForm, institution: e.target.value })} />
-              <Field label="Opening balance" value={accountForm.opening_balance} onChange={(e) => setAccountForm({ ...accountForm, opening_balance: e.target.value })} />
-              <button className="primary">Add account</button>
-            </form>
-            {accounts.length ? <div className="account-list">{accounts.map((account) => <article className="row-card" key={account.id}><div><strong>{account.name}</strong><span>{account.account_type} · {account.institution || 'No institution'}</span></div><strong>{money(account.current_balance)}</strong></article>)}</div> : <Empty title="No accounts yet">Create the first account to start the ledger.</Empty>}
-          </section>
-        )}
-        {active === 'Transactions' && (
-          <section className="panel">
-            <h2>Transactions</h2>
-            <form className="grid-form" onSubmit={addTransaction}>
-              <label className="field"><span>Account</span><select value={txForm.account_id} onChange={(e) => setTxForm({ ...txForm, account_id: e.target.value })}><option value="">Select account</option>{accounts.map((a) => <option value={a.id} key={a.id}>{a.name}</option>)}</select></label>
-              <Field label="Date" type="date" value={txForm.date} onChange={(e) => setTxForm({ ...txForm, date: e.target.value })} />
-              <label className="field"><span>Type</span><select value={txForm.transaction_type} onChange={(e) => setTxForm({ ...txForm, transaction_type: e.target.value })}><option value="expense">Expense / Debit</option><option value="income">Income / Credit</option></select></label>
-              <Field label="Amount" value={txForm.amount} onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })} />
-              <Field label="Description" value={txForm.description} onChange={(e) => setTxForm({ ...txForm, description: e.target.value })} />
-              <button className="primary">Add transaction</button>
-            </form>
-            {transactions.length ? <TransactionTable rows={transactions} /> : <Empty title="No transactions yet">Transactions represent actual financial activity.</Empty>}
-          </section>
-        )}
-        {!['Overview', 'Accounts', 'Transactions'].includes(active) && <section className="panel"><Empty title={`${active} is planned`}>This module is listed in the roadmap and will be implemented in a future release.</Empty></section>}
-      </main>
-    </div>
-  );
+  return <div className="shell"><aside className="sidebar"><div className="brand"><span className="mark">F</span><div><strong>Fynvo</strong><small>Know what's coming.</small></div></div><nav>{nav.map((item) => <button key={item} onClick={() => setActive(item)} className={active === item ? 'active' : ''}>{item}</button>)}</nav></aside><main className="content"><header className="header"><div><p className="eyebrow">Scheduled finance</p><h1>{active}</h1><p>Welcome back, {auth.user?.display_name}.</p></div><button onClick={logout}>Logout</button></header>
+    {active === 'Overview' && <><section className="cards"><article><span>Available Cash</span><strong>{money(overview?.summary?.available_cash)}</strong></article><article><span>Expected Income</span><strong>{money(overview?.summary?.income)}</strong></article><article><span>Scheduled Commitments</span><strong>{money(overview?.summary?.recurring_bills)}</strong></article><article><span>Overdue</span><strong>{money(overview?.summary?.overdue_amount)}</strong></article><article><span>Recurring Needing Attention</span><strong>{overview?.summary?.incomplete_recurring_count || 0}</strong></article><article><span>Bills Due</span><strong>{overview?.summary?.bills_due_count || 0}</strong></article></section><section className="panel"><h2>Upcoming</h2>{overview?.upcoming?.length ? <EventList rows={overview.upcoming} /> : <Empty title="No scheduled items">Income, bills and recurring expenses will appear here.</Empty>}</section></>}
+    {active === 'Accounts' && <section className="panel"><h2>Accounts</h2><form className="grid-form" onSubmit={addAccount}><Field label="Name" value={accountForm.name} onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })} /><label className="field"><span>Type</span><select value={accountForm.account_type} onChange={(e) => setAccountForm({ ...accountForm, account_type: e.target.value })}><option value="transaction">Transaction / Everyday</option><option value="savings">Savings</option><option value="credit_card">Credit Card</option><option value="cash">Cash</option><option value="mortgage">Mortgage</option><option value="personal_loan">Personal Loan</option><option value="vehicle_loan">Vehicle Loan</option><option value="other_asset">Other Asset</option><option value="other_liability">Other Liability</option></select></label><Field label="Institution" value={accountForm.institution} onChange={(e) => setAccountForm({ ...accountForm, institution: e.target.value })} /><Field label="Opening balance" value={accountForm.opening_balance} onChange={(e) => setAccountForm({ ...accountForm, opening_balance: e.target.value })} /><button className="primary">Add account</button></form>{accounts.length ? <div className="account-list">{accounts.map((a) => <article className="row-card" key={a.id}><div><strong>{a.name}</strong><span>{a.account_type} · {a.institution || 'No institution'}</span></div><strong>{money(a.current_balance)}</strong></article>)}</div> : <Empty title="No accounts yet">Create the first account to start the ledger.</Empty>}</section>}
+    {active === 'Transactions' && <section className="panel"><h2>Transactions</h2><form className="grid-form" onSubmit={addTransaction}><label className="field"><span>Account</span><select value={txForm.account_id} onChange={(e) => setTxForm({ ...txForm, account_id: e.target.value })}><option value="">Select account</option>{accounts.map((a) => <option value={a.id} key={a.id}>{a.name}</option>)}</select></label><Field label="Date" type="date" value={txForm.date} onChange={(e) => setTxForm({ ...txForm, date: e.target.value })} /><label className="field"><span>Type</span><select value={txForm.transaction_type} onChange={(e) => setTxForm({ ...txForm, transaction_type: e.target.value })}><option value="expense">Expense / Debit</option><option value="income">Income / Credit</option></select></label><Field label="Amount" value={txForm.amount} onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })} /><Field label="Description" value={txForm.description} onChange={(e) => setTxForm({ ...txForm, description: e.target.value })} /><button className="primary">Add transaction</button></form>{transactions.length ? <TransactionTable rows={transactions} /> : <Empty title="No transactions yet">Transactions represent actual financial activity.</Empty>}</section>}
+    {active === 'Income' && <section className="panel"><h2>Income</h2><form className="grid-form" onSubmit={addIncome}><Field label="Name" value={incomeForm.name} onChange={(e) => setIncomeForm({ ...incomeForm, name: e.target.value })} /><Field label="Amount" value={incomeForm.amount} onChange={(e) => setIncomeForm({ ...incomeForm, amount: e.target.value })} /><FrequencySelect value={incomeForm.frequency} onChange={(frequency) => setIncomeForm({ ...incomeForm, frequency })} /><Field label="Next payment date" type="date" value={incomeForm.next_payment_date} onChange={(e) => setIncomeForm({ ...incomeForm, next_payment_date: e.target.value })} /><Field label="Payer" value={incomeForm.payer} onChange={(e) => setIncomeForm({ ...incomeForm, payer: e.target.value })} /><button className="primary">Add income</button></form><SimpleRows rows={income} /></section>}
+    {active === 'Recurring Expenses' && <section className="panel"><h2>Recurring Expenses</h2><form className="grid-form" onSubmit={addRecurring}><Field label="Name" value={recurringForm.name} onChange={(e) => setRecurringForm({ ...recurringForm, name: e.target.value })} /><Field label="Amount" value={recurringForm.amount} onChange={(e) => setRecurringForm({ ...recurringForm, amount: e.target.value })} /><FrequencySelect value={recurringForm.frequency} onChange={(frequency) => setRecurringForm({ ...recurringForm, frequency })} /><Field label="Next due date" type="date" value={recurringForm.next_due_date} onChange={(e) => setRecurringForm({ ...recurringForm, next_due_date: e.target.value })} /><Field label="Source account text" value={recurringForm.source_account_text} onChange={(e) => setRecurringForm({ ...recurringForm, source_account_text: e.target.value })} /><button className="primary">Add recurring</button></form><RecurringRows rows={recurring} /></section>}
+    {active === 'Bills' && <section className="panel"><h2>Bills & Obligations</h2><form className="grid-form" onSubmit={addBill}><Field label="Name" value={billForm.name} onChange={(e) => setBillForm({ ...billForm, name: e.target.value })} /><Field label="Provider" value={billForm.provider} onChange={(e) => setBillForm({ ...billForm, provider: e.target.value })} /><Field label="Amount" value={billForm.amount} onChange={(e) => setBillForm({ ...billForm, amount: e.target.value })} /><Field label="Due date" type="date" value={billForm.due_date} onChange={(e) => setBillForm({ ...billForm, due_date: e.target.value })} /><label className="field"><span>Priority</span><select value={billForm.priority} onChange={(e) => setBillForm({ ...billForm, priority: e.target.value })}><option value="high">High</option><option value="normal">Normal</option><option value="low">Low</option></select></label><button className="primary">Add bill</button></form><BillRows rows={bills} /></section>}
+    {['Week', 'Month', 'Pay Cycle'].includes(active) && <section className="panel"><h2>{active} View</h2>{schedule ? <><section className="cards compact"><article><span>Income</span><strong>{money(schedule.income)}</strong></article><article><span>Commitments</span><strong>{money(schedule.commitments)}</strong></article><article><span>Net</span><strong>{money(schedule.net)}</strong></article></section><EventList rows={schedule.events} /></> : <Empty title="Loading schedule">Calculating scheduled finance.</Empty>}</section>}
+    {active === 'Year' && <section className="panel"><h2>Annual Matrix</h2><YearMatrix matrix={matrix} setModal={setModal} /></section>}
+    {active === 'Planned Spending' && <section className="panel"><Empty title="Planned Spending is next">v0.5.0 remains the planned spending release.</Empty></section>}
+    {active === 'Settings' && <section className="panel"><Empty title="Settings">Pay-cycle configuration and category management will expand in later releases.</Empty></section>}
+  </main>{modal && <div className="modal-backdrop" onClick={() => setModal(null)}><div className="modal" onClick={(e) => e.stopPropagation()}><button className="close" onClick={() => setModal(null)}>×</button><h2>{modal.title}</h2><EventList rows={modal.items} /><strong>Total {money(modal.total)}</strong></div></div>}</div>;
 }
 
-function TransactionTable({ rows }) {
-  return <div className="table"><div className="thead"><span>Date</span><span>Description</span><span>Account</span><span>Amount</span></div>{rows.map((row) => <div className="tr" key={row.id}><span>{row.date}</span><span>{row.description}</span><span>{row.account_name}</span><strong className={Number(row.amount) >= 0 ? 'positive' : 'negative'}>{money(row.amount)}</strong></div>)}</div>;
-}
+function FrequencySelect({ value, onChange }) { return <label className="field"><span>Frequency</span><select value={value || ''} onChange={(e) => onChange(e.target.value || null)}><option value="">Pending</option><option value="weekly">Weekly</option><option value="fortnightly">Fortnightly</option><option value="every_28_days">Every 28 days</option><option value="every_4_weeks">Every 4 weeks</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option><option value="custom">Custom interval</option><option value="one_off">One-off</option></select></label>; }
+function TransactionTable({ rows }) { return <div className="table"><div className="thead"><span>Date</span><span>Description</span><span>Account</span><span>Amount</span></div>{rows.map((row) => <div className="tr" key={row.id}><span>{row.date}</span><span>{row.description}</span><span>{row.account_name}</span><strong className={Number(row.amount) >= 0 ? 'positive' : 'negative'}>{money(row.amount)}</strong></div>)}</div>; }
+function SimpleRows({ rows }) { return rows?.length ? <div className="account-list">{rows.map((r) => <article className="row-card" key={r.id}><div><strong>{r.name}</strong><span>{r.frequency || 'Frequency pending'} · {r.next_payment_date || 'Date pending'}</span>{r.missing_fields?.length ? <small>Missing: {r.missing_fields.join(', ')}</small> : null}</div><strong>{money(r.amount)}</strong></article>)}</div> : <Empty title="No income yet">Add income sources to power pay-cycle views.</Empty>; }
+function RecurringRows({ rows }) { return rows?.length ? <div className="account-list">{rows.map((r) => <article className="row-card" key={r.id}><div><strong>{r.name}</strong><span>{r.category || 'Uncategorised'} · {r.frequency || 'Frequency pending'} · {r.next_due_date || 'Date pending'}</span>{r.missing_fields?.length ? <small>Missing: {r.missing_fields.join(', ')}</small> : null}</div><div><Badge tone={r.completeness.includes('incomplete') ? 'warn' : ''}>{r.completeness}</Badge><strong>{money(r.amount)}</strong></div></article>)}</div> : <Empty title="No recurring expenses">Incomplete recurring records are allowed and stay visible.</Empty>; }
+function BillRows({ rows }) { return rows?.length ? <div className="account-list">{rows.map((r) => <article className={`row-card ${r.status === 'overdue' && r.priority === 'high' ? 'danger' : ''}`} key={r.id}><div><strong>{r.name}</strong><span>{r.provider || 'Provider pending'} · {r.due_date || 'Date pending'} · {r.status}</span>{r.notes ? <small>{r.notes}</small> : null}</div><div><Badge tone={r.priority === 'high' ? 'danger' : ''}>{r.priority}</Badge><strong>{money(r.amount)}</strong></div></article>)}</div> : <Empty title="No bills yet">Add one-off bills or outstanding obligations.</Empty>; }
+function EventList({ rows }) { return rows?.length ? <div className="table"><div className="thead"><span>Date</span><span>Item</span><span>Type</span><span>Amount</span></div>{rows.map((row, i) => <div className="tr" key={`${row.date}-${row.name}-${i}`}><span>{row.date}</span><span>{row.name}<small>{row.provider || row.account || ''}</small></span><span>{row.kind || row.status || ''}</span><strong>{money(row.amount)}</strong></div>)}</div> : <Empty title="No records">Nothing in this period.</Empty>; }
+function YearMatrix({ matrix, setModal }) { if (!matrix) return <Empty title="Loading matrix">Calculating annual totals.</Empty>; const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; return <div className="matrix"><div className="matrix-row head"><strong>Item</strong>{months.map(m => <strong key={m}>{m}</strong>)}<strong>Total</strong></div>{matrix.rows.map((row) => <div className="matrix-row" key={`${row.category}-${row.item}`}><strong><small>{row.category}</small>{row.item}</strong>{months.map((m, index) => { const cell = row.months[String(index + 1)]; return <button key={m} onClick={() => setModal({ title: `${row.item} ${m} ${matrix.year}`, total: cell.total, items: cell.items })}>{Number(cell.total) ? money(cell.total) : '-'}</button>; })}<strong>{money(row.total)}</strong></div>)}</div>; }
