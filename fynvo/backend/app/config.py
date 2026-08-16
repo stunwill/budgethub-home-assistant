@@ -14,7 +14,10 @@ class Settings(BaseModel):
     currency: str = "AUD"
     session_days: int = 7
     session_expiry_minutes: int = 60 * 24 * 7
+    session_cookie_name: str = "fynvo_session"
     cookie_secure: bool = False
+    max_login_attempts: int = 5
+    login_attempt_window_seconds: int = 15 * 60
 
 
 @lru_cache
