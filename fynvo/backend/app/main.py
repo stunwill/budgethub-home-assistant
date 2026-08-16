@@ -31,12 +31,12 @@ from .ledger import (
     delete_transaction,
     delete_transfer,
     get_account,
-    update_transfer,
     list_accounts,
     list_transactions,
     running_transactions,
     update_account,
     update_transaction,
+    update_transfer,
 )
 from .models import User
 from .schemas import (
@@ -161,7 +161,11 @@ def add_account(payload: AccountCreate, current_user: User = USER_DEPENDENCY, db
 @app.get("/api/accounts/{account_id}")
 def account_detail(account_id: int, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
     account = get_account(db, current_user, account_id)
-    return {"account": list_accounts(db, current_user, True)[[row["id"] for row in list_accounts(db, current_user, True)].index(account.id)], "transactions": running_transactions(db, current_user, account.id)}
+    accounts_list = list_accounts(db, current_user, True)
+    return {
+        "account": accounts_list[[row["id"] for row in accounts_list].index(account.id)],
+        "transactions": running_transactions(db, current_user, account.id),
+    }
 
 
 @app.put("/api/accounts/{account_id}")
