@@ -1,0 +1,22 @@
+name: BudgetHub
+version: "0.1.0"
+slug: budgethub
+ description: Household budgeting, recurring costs, income, planned spending and cash-flow forecasting.
+url: https://github.com/stunwill/budgethub-home-assistant
+arch:
+  - aarch64
+  - amd64
+  - armhf
+  - armv7
+  - i386
+startup: application
+boot: auto
+ingress: true
+ingress_port: 8097
+panel_icon: mdi:wallet-outline
+panel_title: BudgetHub
+init: false
+map:
+  - data:rw
+options: {}
+schema: {}
