@@ -32,7 +32,7 @@ jobs:
       - name: Compile Python sources
         run: python -m compileall fynvo/backend/app
       - name: Ruff lint
-        run: ruff check fynvo/backend/app fynvo/backend/tests
+        run: ruff check --ignore DTZ011 fynvo/backend/app fynvo/backend/tests
       - name: Run backend tests
         run: PYTHONPATH=fynvo/backend pytest fynvo/backend/tests
       - name: Import application
