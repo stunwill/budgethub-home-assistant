@@ -3,11 +3,15 @@ from sqlalchemy.orm import Session as DbSession
 
 from .auth import SESSION_COOKIE, bootstrap_configured, get_current_user, setup_required
 from .database import get_db
-from .main import public_user
-from .schemas import AuthStateResponse
+from .models import User
+from .schemas import AuthStateResponse, UserResponse
 
 router = APIRouter()
 DB = Depends(get_db)
+
+
+def public_user(user: User) -> UserResponse:
+    return UserResponse(id=user.id, username=user.username, display_name=user.display_name, is_admin=user.is_admin)
 
 
 @router.get("/auth/state", response_model=AuthStateResponse)
