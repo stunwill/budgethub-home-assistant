@@ -1,4 +1,5 @@
 from app.database import get_engine
+from app.finance import today_local
 from sqlalchemy import text
 
 
@@ -55,10 +56,11 @@ def test_disconnect_preserves_historical_transactions(client):
 
 def test_dashboard_upcoming_commitments_and_overdue_are_separate(client):
     setup_user(client)
+    current_day = today_local()
     account = client.post("/api/accounts", json={"name": "Everyday", "account_type": "transaction", "opening_balance": "5000.00"}).json()
-    client.post("/api/income", json={"name": "Salary", "amount": "2100.00", "frequency": "one_off", "next_payment_date": "2026-08-18", "destination_account_id": account["id"]})
-    client.post("/api/bills", json={"name": "Old Bill", "amount": "120.00", "due_date": "2026-08-16", "account_id": account["id"]})
-    client.post("/api/bills", json={"name": "Internet", "amount": "140.00", "due_date": "2026-08-21", "account_id": account["id"]})
+    client.post("/api/income", json={"name": "Salary", "amount": "2100.00", "frequency": "one_off", "next_payment_date": (current_day + __import__('datetime').timedelta(days=1)).isoformat(), "destination_account_id": account["id"]})
+    client.post("/api/bills", json={"name": "Old Bill", "amount": "120.00", "due_date": (current_day - __import__('datetime').timedelta(days=1)).isoformat(), "account_id": account["id"]})
+    client.post("/api/bills", json={"name": "Internet", "amount": "140.00", "due_date": (current_day + __import__('datetime').timedelta(days=4)).isoformat(), "account_id": account["id"]})
     dashboard = client.get("/api/dashboard/command-centre?range_days=90")
     assert dashboard.status_code == 200
     payload = dashboard.json()
