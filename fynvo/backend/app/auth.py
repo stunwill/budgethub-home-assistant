@@ -28,13 +28,15 @@ def get_client_key(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-def setup_required(db: DbSession) -> bool:
-    return db.scalar(select(func.count(User.id))) == 0
-
-
 def bootstrap_configured() -> bool:
     settings = get_settings()
     return bool(settings.admin_username and settings.admin_password)
+
+
+def setup_required(db: DbSession) -> bool:
+    if db.scalar(select(func.count(User.id))) == 0 and bootstrap_configured():
+        bootstrap_initial_admin(db)
+    return db.scalar(select(func.count(User.id))) == 0
 
 
 def _validate_admin_values(username: str | None, password: str | None, display_name: str | None) -> tuple[str, str, str]:
@@ -119,12 +121,7 @@ def create_initial_admin(db: DbSession, username: str, password: str, display_na
         username_value, display_name_value, password_value = _validate_admin_values(username, password, display_name)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    user = User(
-        username=username_value,
-        display_name=display_name_value,
-        password_hash=hash_password(password_value),
-        is_admin=True,
-    )
+    user = User(username=username_value, display_name=display_name_value, password_hash=hash_password(password_value), is_admin=True)
     db.add(user)
     db.commit()
     db.refresh(user)
