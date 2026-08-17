@@ -30,6 +30,8 @@ class AuthStateResponse(BaseModel):
     authenticated: bool
     setup_required: bool
     user: UserResponse | None = None
+    admin_bootstrap_configured: bool = False
+    message: str | None = None
 
 
 class DashboardSummary(BaseModel):
