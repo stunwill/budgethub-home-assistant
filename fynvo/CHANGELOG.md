@@ -1,5 +1,32 @@
 # Fynvo Add-on Changelog
 
+## v0.12.0
+
+### Added
+- Home Assistant administrator bootstrap options for first-run access.
+- Secure idempotent initial administrator creation.
+- Administrator recovery mode.
+- Provider-neutral Bank Connections foundation for Australian Open Banking / CDR readiness.
+- Mock Australian bank provider for development and testing.
+- Bank connection, external account, transaction identity and sync-history storage.
+- Connected account discovery, linking and balance sync metadata.
+- Bank transaction sync into the existing transaction pipeline.
+- Pending-to-posted and duplicate-prevention foundations.
+- Reconciliation suggestions for synced bank transactions.
+- Fynvo favicon asset.
+
+### Changed
+- Version updated to 0.12.0.
+- Upcoming now means the next seven-day financial agenda and may include income.
+- Upcoming Commitments now means outgoing obligations over the selected dashboard horizon.
+- Overdue items are separated from future Upcoming events.
+- Bank sync and CSV import coexist in the same Actual transaction model.
+
+### Fixed
+- Fresh installs no longer leave the owner guessing how to create the first administrator.
+- Past unresolved records no longer appear as future Upcoming events.
+- Dashboard outgoing amounts now display as negative obligations.
+
 ## v0.11.0
 
 ### Added
