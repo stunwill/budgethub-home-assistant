@@ -1,11 +1,11 @@
 from app.security import hash_password, verify_password
 
 
-def test_health_endpoint_reports_v0110(client):
+def test_health_endpoint_reports_v0120(client):
     response = client.get("/api/health")
     assert response.status_code == 200
     assert response.json()["service"] == "Fynvo"
-    assert response.json()["version"] == "0.11.0"
+    assert response.json()["version"] == "0.12.0"
 
 
 def test_password_hashing_does_not_store_plaintext():
@@ -55,3 +55,34 @@ def test_password_change(client):
     client.post("/api/auth/logout")
     assert client.post("/api/auth/login", json={"username": "stu", "password": "ChangeMe123!"}).status_code == 401
     assert client.post("/api/auth/login", json={"username": "stu", "password": "NewPassword123!"}).status_code == 200
+
+
+def test_admin_bootstrap_from_home_assistant_configuration(client, monkeypatch):
+    monkeypatch.setenv("FYNVO_ADMIN_USERNAME", "owner")
+    monkeypatch.setenv("FYNVO_ADMIN_DISPLAY_NAME", "Owner")
+    monkeypatch.setenv("FYNVO_ADMIN_PASSWORD", "OwnerPassword123!")
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    state = client.get("/api/auth/state").json()
+    assert state["setup_required"] is False
+    login = client.post("/api/auth/login", json={"username": "owner", "password": "OwnerPassword123!"})
+    assert login.status_code == 200
+    assert login.json()["is_admin"] is True
+    assert "OwnerPassword123!" not in login.text
+
+    client.post("/api/auth/logout")
+    state_again = client.get("/api/auth/state").json()
+    assert state_again["setup_required"] is False
+    assert client.post("/api/auth/login", json={"username": "owner", "password": "OwnerPassword123!"}).status_code == 200
+
+
+def test_invalid_admin_bootstrap_does_not_create_user(client, monkeypatch):
+    monkeypatch.setenv("FYNVO_ADMIN_USERNAME", "ow")
+    monkeypatch.setenv("FYNVO_ADMIN_PASSWORD", "password")
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    state = client.get("/api/auth/state").json()
+    assert state["setup_required"] is True
+    assert client.post("/api/auth/login", json={"username": "ow", "password": "password"}).status_code == 428
