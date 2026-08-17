@@ -1,7 +1,7 @@
 name: Fynvo
-version: "0.11.0"
+version: "0.12.0"
 slug: fynvo
-description: Household budgeting, cash-flow forecasting, financial calendar, goals, accounts, transactions, CSV import, reconciliation and spending intelligence for Home Assistant.
+description: Household budgeting, cash-flow forecasting, financial calendar, goals, accounts, transactions, CSV import, reconciliation, bank sync and spending intelligence for Home Assistant.
 url: https://github.com/stunwill/fynvo-home-assistant
 arch:
   - aarch64
@@ -18,5 +18,15 @@ panel_title: Fynvo
 init: false
 map:
   - data:rw
-options: {}
-schema: {}
+options:
+  admin_username: ""
+  admin_display_name: ""
+  admin_password: ""
+  admin_recovery_mode: false
+  session_days: 7
+schema:
+  admin_username: str?
+  admin_display_name: str?
+  admin_password: password?
+  admin_recovery_mode: bool
+  session_days: int(1,30)
