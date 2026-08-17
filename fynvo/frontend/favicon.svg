@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Fynvo">
+  <defs>
+    <linearGradient id="fynvoBlue" x1="10" x2="54" y1="54" y2="10" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F5BFF"/>
+      <stop offset="1" stop-color="#23B3FF"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="#F8FAFF"/>
+  <path d="M15 50V19.5C15 14.25 19.25 10 24.5 10H50c0 8.8-7.1 15.9-15.9 15.9H28.5c-2.2 0-4 1.8-4 4V50H15Z" fill="url(#fynvoBlue)"/>
+  <path d="M27 50V35.5c0-4.7 3.8-8.5 8.5-8.5H49c0 8.3-6.7 15-15 15h-1.5c-1.1 0-2 .9-2 2V50H27Z" fill="#061A44" opacity=".92"/>
+</svg>
