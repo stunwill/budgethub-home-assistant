@@ -17,11 +17,13 @@ This roadmap is the canonical development queue for Fynvo. Future development sh
 11. Keep spending intelligence local, explainable and user-controlled.
 12. Treat Goals as forward-looking financial planning records distinct from Budgets and Planned Spending.
 13. The Overview dashboard should be a household financial command centre, not a development-status page.
+14. Authentication must always have a documented owner bootstrap and recovery path.
+15. User activity, audit events and record change history must become explicit production-readiness capabilities before v1.0.
 
 ## Core product concepts
 
 ### Actual
-Money that has already been received or spent through recorded, imported or reconciled transactions.
+Money that has already been received or spent through recorded, imported, synchronised or reconciled transactions.
 
 ### Committed
 Known obligations and income sources such as recurring expenses, bills and scheduled income.
@@ -40,6 +42,12 @@ What Fynvo calculates is likely to happen based on balances, commitments, plans,
 
 ### Scenario
 A temporary or saved what-if view of what would happen if circumstances changed.
+
+### Audit Event
+An append-only record of what action occurred, when it occurred and which user/interface caused it.
+
+### Change History
+A versioned view of what data changed on a financial record, such as amount, date, category or status.
 
 ## Release definition of done from v0.3.0 onward
 
@@ -190,7 +198,7 @@ Delivered scope:
 
 ### v0.11.0 - Goals & Financial Planning
 
-Status: Implemented in the v0.11.0 development PR.
+Status: Completed.
 
 Delivered scope:
 - first-class Financial Goals domain;
@@ -219,12 +227,65 @@ Delivered scope:
 - removal of development-oriented panels from the household Overview;
 - improved Quick Add forms and validation feedback.
 
-### v0.12.0 - Australian Open Banking / CDR
+### v0.12.0 - Australian Open Banking / CDR Foundation, Admin Bootstrap & Branding
 
-Planned scope:
-- Australian CDR/Open Banking account connections;
-- secure consent handling;
-- account and transaction ingestion through the same pipeline as manual entry and CSV import.
+Status: Implemented in the v0.12.0 development PR.
+
+Delivered scope:
+- Home Assistant add-on administrator bootstrap configuration;
+- idempotent initial administrator creation when no users exist;
+- explicit administrator recovery mode;
+- password hashing and no permanent default credentials;
+- first-run messaging for missing administrator configuration;
+- Fynvo version and add-on metadata updated to 0.12.0;
+- provider-neutral Bank Connection architecture;
+- mock Australian CDR provider for development and testing;
+- institution discovery;
+- external account discovery;
+- external account to Fynvo account linking;
+- connected-account balance metadata;
+- bank transaction ingestion through the existing Actual transaction table;
+- provider transaction identity tracking;
+- pending-to-posted matching foundation;
+- idempotent repeated sync;
+- sync history;
+- disconnect without deleting historical transactions;
+- merchant normalisation handoff;
+- reconciliation-link suggestions for Bills, Income and Planned Spending;
+- expected vs actual variance preservation;
+- Overview definitions corrected for Upcoming, Upcoming Commitments and Overdue;
+- Upcoming is the next seven-day financial agenda and can include income;
+- Upcoming Commitments uses the selected dashboard horizon and excludes ordinary income;
+- overdue unresolved items remain visible but separate from future Upcoming;
+- browser favicon and app metadata aligned to Fynvo branding.
+
+Production CDR connectivity remains future work. v0.12.0 deliberately does not fabricate live bank connectivity without provider credentials, consent infrastructure or an appropriate Australian CDR intermediary.
+
+### Future production-readiness release - User Management, Activity, Audit Logs & Change History
+
+Planned scope before or as part of v1.0 readiness:
+- household user creation, editing, deactivation and reactivation;
+- password reset and password recovery workflows;
+- roles and permissions such as Administrator, Household Member and Read Only where appropriate;
+- household membership;
+- display names and profiles;
+- last-login and account-status visibility;
+- User Activity for login, logout, record creation, record editing, CSV import, bank connect/disconnect, budget changes, reconciliation decisions, rules and goal changes;
+- immutable append-only Audit Logs that record timestamp, user, action, entity type, entity ID, source/interface and important metadata;
+- separate record Change History showing previous value, new value and effective dates;
+- created_by_user_id and updated_by_user_id metadata on important entities where practical.
+
+Future example:
+
+#### Recurring Expense: Internet
+
+Created: 5 Jan 2026, 10:42 by Stu. Amount: `$140/month`.
+
+Changed: 1 Oct 2026, 09:15 by Stu. Amount: `$140 → $80`. Effective: `1 Oct 2026`.
+
+Audit event: Stu edited Telstra Internet.
+
+Change history: amount changed from `$140` to `$80`.
 
 ### v0.13.0 - Forecast & Scenario Intelligence
 
@@ -258,4 +319,5 @@ Planned scope:
 - installation polish;
 - migration reliability;
 - user documentation;
-- stable release packaging.
+- stable release packaging;
+- user management, audit log and change-history readiness.
