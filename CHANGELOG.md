@@ -2,6 +2,54 @@
 
 All notable Fynvo changes are documented here. Starting with v0.3.0, every release must include a user-readable changelog entry, Home Assistant-visible release notes and GitHub release notes.
 
+## v0.12.0
+
+### Added
+- Added Home Assistant add-on administrator bootstrap fields for first-run access.
+- Added idempotent initial administrator creation when no users exist.
+- Added administrator recovery mode for controlled password recovery without deleting the database.
+- Added provider-neutral Bank Connections architecture for Australian Open Banking / Consumer Data Right readiness.
+- Added a mock Australian bank provider for development, demos and automated testing.
+- Added Bank Connection records with provider, institution, status, consent state, last sync, consent expiry and error state.
+- Added External Account mapping so provider account IDs are linked to Fynvo Accounts without becoming Fynvo primary IDs.
+- Added account discovery, connected account creation/linking and ignore-account support.
+- Added synchronised connected-account balances and balance freshness metadata.
+- Added bank transaction ingestion into the existing Fynvo transaction table with source `bank_sync`.
+- Added provider transaction identity tracking for idempotent sync and pending-to-posted matching.
+- Added sync history with added, updated and duplicate/ignored counts.
+- Added bank disconnect support that stops future sync without deleting historical transactions.
+- Added reconciliation suggestions from bank transactions to Bills, Income and Planned Spending.
+- Added browser favicon asset aligned to Fynvo branding.
+
+### Changed
+- Updated all release metadata to v0.12.0.
+- Updated Home Assistant add-on configuration and schema for administrator bootstrap and session length.
+- Corrected the Overview definitions for Upcoming, Upcoming Commitments and Overdue.
+- Upcoming is now the next seven-day financial agenda and may include Income, Bills, Recurring Expenses and Planned Spending.
+- Upcoming Commitments now follows the selected dashboard horizon and excludes ordinary Income.
+- Overdue unresolved bills are separated from future Upcoming items.
+- Dashboard event amounts now preserve direction: income is positive, outgoing obligations are negative.
+- Quick Stats now labels average monthly commitments, planned spending and net forecast more clearly.
+- Bank sync data now feeds the same Actual transaction pipeline used by Manual Entry and CSV Import.
+
+### Fixed
+- Fixed the release-blocking issue where a fresh Home Assistant installation could show a login page without a documented administrator bootstrap path.
+- Fixed Upcoming date filtering so past unresolved records do not appear as future Upcoming events.
+- Fixed Upcoming Commitments empty states caused by incorrect filtering.
+- Fixed expense direction formatting in short-term dashboard agenda rows.
+
+### Security and privacy
+- No permanent default administrator password is committed.
+- Administrator passwords are hashed before storage.
+- Bootstrap configuration is ignored after an administrator exists unless explicit recovery mode is enabled.
+- Bank provider credentials are not stored by v0.12.0.
+- Mock bank data is clearly labelled as mock/development data.
+- Sensitive provider payloads and tokens are not exposed to the frontend.
+
+### Deferred
+- Production CDR provider credentials, consent infrastructure and accredited-provider integration remain future work.
+- Full User Management, User Activity, immutable Audit Logs and Record Change History are now explicit roadmap items before or as part of v1.0 readiness.
+
 ## v0.11.0
 
 ### Added
@@ -78,22 +126,3 @@ All notable Fynvo changes are documented here. Starting with v0.3.0, every relea
 - Added support for DD/MM/YYYY, DD/MM/YY and YYYY-MM-DD dates.
 - Added import preview with validation, invalid row reporting, duplicate detection and matching suggestions.
 - Added import batches, import history and a reconciliation review queue.
-- Added matching suggestions for Bills, Recurring Expenses and Planned Spending using amount, date and merchant/category similarity.
-- Added Actual vs Expected variance storage for reconciliation links.
-- Added category suggestions and merchant/description normalisation foundations for v0.10.0 Spending Intelligence.
-
-### Changed
-- Updated version references to v0.9.0.
-- Updated the main Fynvo UI so editing is discoverable from every major financial list.
-- Imported CSV transactions become first-class Actual transactions that feed budget, forecast, cash-flow and future report calculations.
-
-### Fixed
-- Corrected the v0.8.0 gap where editing existing financial records was not available in the released UI.
-
-### Security
-- Import, edit and reconciliation APIs require the existing authenticated session and remain scoped to the authenticated user.
-- CSV content is treated as untrusted text, constrained by size and never executed.
-
-### Deferred
-- Advanced rule learning, anomaly detection and recurring-payment discovery remain planned for v0.10.0 Spending Intelligence.
-- Full Open Banking/CDR import remains planned for v0.12.0.
