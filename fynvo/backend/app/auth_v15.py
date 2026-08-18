@@ -6,11 +6,15 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from .auth import SESSION_COOKIE, bootstrap_configured, get_current_user, setup_required
-from .auth_lifecycle import admin_auth_diagnostics, initialize_authentication, public_auth_status
-from .config import get_settings
+from .auth import SESSION_COOKIE, bootstrap_configured, get_current_user
+from .auth_lifecycle import (
+    admin_auth_diagnostics,
+    initialize_authentication,
+    public_auth_status,
+)
 from .database import get_db, get_session_factory, run_migrations
 from .models import Session, User
+from .security import hash_token
 
 
 @asynccontextmanager
@@ -25,6 +29,7 @@ async def auth_lifespan(_app):
 
 router = APIRouter(lifespan=auth_lifespan)
 DB = Depends(get_db)
+USER = Depends(get_current_user)
 
 
 def _public_user(user: User) -> dict[str, object]:
@@ -78,7 +83,7 @@ def public_configuration_status(db: DbSession = DB):
 
 @router.get("/auth/diagnostics")
 def authentication_diagnostics(
-    current_user: User = Depends(get_current_user),
+    current_user: User = USER,
     db: DbSession = DB,
     session_token: str | None = SESSION_COOKIE,
 ):
@@ -86,9 +91,12 @@ def authentication_diagnostics(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Administrator access required")
     diagnostics = admin_auth_diagnostics(db)
     if session_token:
-        from .security import hash_token
-
-        session = db.scalar(select(Session).where(Session.token_hash == hash_token(session_token), Session.user_id == current_user.id))
+        session = db.scalar(
+            select(Session).where(
+                Session.token_hash == hash_token(session_token),
+                Session.user_id == current_user.id,
+            )
+        )
         diagnostics["session_expires_at"] = session.expires_at.isoformat() if session else None
     else:
         diagnostics["session_expires_at"] = None
