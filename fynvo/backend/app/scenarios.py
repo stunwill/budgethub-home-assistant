@@ -159,7 +159,6 @@ def _scenario_forecast_payload(db: DbSession, user: User, scenario: dict, horizo
         kind = adj["kind"]
         effective_from = _as_date(adj.get("effective_from")) or start
         effective_to = _as_date(adj.get("effective_to"))
-        source_type = adj.get("source_type")
         source_id = int(adj["source_id"]) if adj.get("source_id") is not None else None
         amount_cents = parse_money(adj["amount"]) if adj.get("amount") is not None else 0
 
