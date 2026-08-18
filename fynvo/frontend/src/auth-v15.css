@@ -1,0 +1,36 @@
+.fynvo-recovery-warning {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid currentColor;
+  background: #fff8dc;
+  color: #4b3d16;
+  font-size: 0.9rem;
+}
+
+.fynvo-recovery-warning button {
+  min-height: 2.25rem;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid currentColor;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.fynvo-recovery-warning button:focus-visible {
+  outline: 3px solid currentColor;
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .fynvo-recovery-warning {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
