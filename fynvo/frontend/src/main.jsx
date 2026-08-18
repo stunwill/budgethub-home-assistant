@@ -4,6 +4,8 @@ import App from './AppV13.jsx';
 import './auth-v15.css';
 import './font-v13.css';
 import './styles.css';
+import './mobile-v16.css';
+import './mobile-navigation.js';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
