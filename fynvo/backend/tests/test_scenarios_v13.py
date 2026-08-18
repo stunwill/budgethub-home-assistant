@@ -1,6 +1,3 @@
-from app.forecast import generate_forecast
-from app.models import User
-
 
 def setup_user(client):
     client.post("/api/auth/setup", json={"username": "stu", "display_name": "Stu", "password": "Password123!"})
