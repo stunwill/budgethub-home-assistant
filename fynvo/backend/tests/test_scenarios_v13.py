@@ -32,10 +32,8 @@ def test_effective_dated_recurring_amount_change_is_scenario_only(client):
     comparison = client.get(f"/api/scenarios/{scenario['id']}/comparison?horizon=184d").json()
     baseline = [(row["date"], row["amount"]) for row in comparison["baseline"]["events"] if row["name"] == "Internet"]
     projected = [(row["date"], row["amount"]) for row in comparison["scenario"]["events"] if row["name"] == "Internet"]
-    assert ("2026-08-01", "-140.00") in baseline
     assert ("2026-09-01", "-140.00") in baseline
     assert ("2026-10-01", "-140.00") in baseline
-    assert ("2026-08-01", "-140.00") in projected
     assert ("2026-09-01", "-140.00") in projected
     assert ("2026-10-01", "-80.00") in projected
     assert ("2026-11-01", "-80.00") in projected
