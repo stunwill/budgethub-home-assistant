@@ -1,5 +1,8 @@
-from datetime import date, timedelta
+from datetime import timedelta
 
+from sqlalchemy import text
+
+from app.database import get_session_factory
 from app.security import utcnow
 
 
@@ -32,10 +35,6 @@ def test_financial_health_is_transparent_and_schema_reaches_v12(client):
     assert "cash_flow" in payload["dimensions"]
     assert "score" not in payload
     assert "opaque overall score" in payload["calculation"]
-
-    from app.database import get_session_factory
-
-    from sqlalchemy import text
 
     with get_session_factory()() as db:
         assert db.execute(text("SELECT max(version) FROM schema_version")).scalar() >= 12
@@ -160,7 +159,7 @@ def test_dismissed_identical_insight_does_not_reappear(client):
 
 def test_resolved_insight_leaves_active_dashboard_when_condition_clears(client):
     setup_user(client)
-    account = add_account(client, "100")
+    add_account(client, "100")
     tomorrow = (utcnow().date() + timedelta(days=1)).isoformat()
     planned = client.post(
         "/api/planned-spending",
