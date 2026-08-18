@@ -1,5 +1,5 @@
 name: Fynvo
-version: "0.12.0"
+version: "0.13.0"
 slug: fynvo
 description: Household budgeting, cash-flow forecasting, financial calendar, goals, accounts, transactions, CSV import, reconciliation, bank sync and spending intelligence for Home Assistant.
 url: https://github.com/stunwill/fynvo-home-assistant

@@ -1,11 +1,11 @@
 from app.security import hash_password, verify_password
 
 
-def test_health_endpoint_reports_v0120(client):
+def test_health_endpoint_reports_v0130(client):
     response = client.get("/api/health")
     assert response.status_code == 200
     assert response.json()["service"] == "Fynvo"
-    assert response.json()["version"] == "0.12.0"
+    assert response.json()["version"] == "0.13.0"
 
 
 def test_password_hashing_does_not_store_plaintext():

@@ -1,5 +1,21 @@
 # Fynvo Add-on Changelog
 
+## v0.13.0
+
+### Added
+- Improved administrator credential adoption and recovery so Home Assistant-configured credentials map to the persisted Fynvo administrator account.
+- Added expanded authentication regression coverage for configured credentials and recovery behaviour.
+- Added persistent Scenario Intelligence service foundations using the existing forecast engine.
+- Added Galano Grotesque Medium web typography for the approved Fynvo login and branding experience.
+
+### Changed
+- Version updated to 0.13.0 across Home Assistant add-on, backend and frontend metadata.
+- Updated login/authentication styling foundations for the approved responsive Fynvo design direction.
+
+### Fixed
+- Fixed a release metadata issue that prevented Home Assistant from detecting v0.13.0 after the implementation PR was merged.
+- Fixed administrator configuration behaviour where configured credentials could differ from the persisted authentication account.
+
 ## v0.12.0
 
 ### Added
