@@ -1,5 +1,35 @@
 # Fynvo Add-on Changelog
 
+## v0.17.0 - Core Reliability & Pre-v1.0 Hardening
+
+### Fixed
+- Fixed Account creation from Accounts > Add. The generic modal previously sent new Accounts to `PUT /api/accounts/null`, causing the literal `null` path segment to be parsed as integer `account_id`.
+- Fixed the shared RecordTable create path so new records use `POST` create endpoints and existing records use ID-based `PUT` updates.
+- Fixed transfers into liability accounts so a credit-card/loan payment reduces the amount owing.
+- Reinforced the mobile navigation drawer so it remains off-canvas and closed by default at phone widths.
+- Fixed Australian date-only display handling to avoid UTC-driven one-day shifts.
+
+### Changed
+- Added user-friendly Account Type labels and expanded stable account identifiers for Offset, Car Loan, Line of Credit, Investment and Superannuation while preserving legacy `vehicle_loan` compatibility.
+- Added explicit asset/liability classification to Account responses.
+- Available Cash now includes active Transaction, Savings, Offset and Cash accounts only.
+- Liability opening balances are entered as positive amounts owing.
+- Archived Accounts remain available historically but are excluded from active selectors and blocked from new manual transactions/transfers.
+- Improved user-facing validation messages and compact mobile Account/page actions.
+- Version updated to 0.17.0 across Home Assistant add-on, backend and frontend metadata.
+
+### Regression protection
+- Exact `Kristy - Main AC` create/edit regression coverage.
+- Account balance and cent-precision regression coverage.
+- Available Cash and liability transfer coverage.
+- Archived-account write protection coverage.
+- Frontend create-versus-update contract and mobile navigation regression coverage.
+- v0.15 authentication/recovery/session tests retained.
+
+### Pre-v1.0
+- Added a v1.0 readiness report. Installed Home Assistant ingress acceptance, representative v0.16.0 upgrade testing and backup/restore validation remain release gates before stable v1.0.0.
+- The actual merged repository does not contain the previously proposed Home Assistant financial sensors/entities, so this release does not claim them as delivered.
+
 ## v0.16.0 - Mobile Experience & Responsive Navigation
 
 ### Added
