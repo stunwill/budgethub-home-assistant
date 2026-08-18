@@ -5,7 +5,16 @@ dashboard, Goals, Bank Connections, Scenario and Insights services through the e
 `/api` router.
 """
 
-from . import auth_v13, banking_v12, budget_v14, dashboard_v12, goals, insights_v14, scenarios, v09
+from . import (
+    auth_v13,
+    banking_v12,
+    budget_v14,
+    dashboard_v12,
+    goals,
+    insights_v14,
+    scenarios,
+    v09,
+)
 
 # Replace the legacy Budget analysis route whose positional call placed `mode`
 # into the `category_id` parameter. The corrected v0.14 route uses explicit
