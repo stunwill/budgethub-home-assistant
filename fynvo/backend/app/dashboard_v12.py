@@ -21,6 +21,7 @@ from .finance import (
 )
 from .forecast import generate_forecast
 from .goals import ensure_goals_schema, list_goals
+from .insights import financial_health
 from .intelligence import ensure_intelligence_schema
 from .ledger import dashboard_position
 from .models import User
@@ -74,6 +75,27 @@ def _overdue(bills: list[dict[str, Any]], today: date) -> list[dict[str, Any]]:
     return rows
 
 
+def _top_insights(db: DbSession, user: User) -> list[dict[str, Any]]:
+    rows = db.execute(
+        text(
+            """
+            SELECT id,title,summary,importance,category,action_label,action_target,updated_at
+            FROM insights
+            WHERE user_id=:user_id AND status IN ('new','reviewed')
+            ORDER BY CASE importance
+                WHEN 'warning' THEN 0
+                WHEN 'attention' THEN 1
+                WHEN 'opportunity' THEN 2
+                ELSE 3 END,
+                updated_at DESC
+            LIMIT 3
+            """
+        ),
+        {"user_id": user.id},
+    ).mappings().all()
+    return [dict(row) for row in rows]
+
+
 @router.get("/dashboard/command-centre")
 def command_centre_dashboard_v12(
     range_days: int = Query(90, ge=7, le=365),
@@ -97,7 +119,8 @@ def command_centre_dashboard_v12(
     income = list_income(db, current_user)
     budgets = analyse_budgets(db, current_user)
     goals = list_goals(False, db, current_user)
-    attention = db.execute(text("SELECT count(*) FROM intelligence_suggestions WHERE user_id = :user_id AND status = 'new'"), {"user_id": current_user.id}).scalar() or 0
+    health = financial_health(db, current_user, range_days, True)
+    top_insights = _top_insights(db, current_user)
     overdue = _overdue(bills, start)
     future_events = _future_events(scheduled["events"], start, end)
     upcoming = _future_events(upcoming_scheduled["events"], start, upcoming_end)[:8]
@@ -110,6 +133,7 @@ def command_centre_dashboard_v12(
     income_cents = parse_money(scheduled["income"])
     commitments_cents = sum(commitment_source_totals.values())
     bank_freshness = db.execute(text("SELECT max(last_successful_sync) FROM bank_connections WHERE user_id=:user_id AND status IN ('connected','syncing')"), {"user_id": current_user.id}).scalar()
+    average_net = _monthly(income_cents - commitments_cents - planned_cents, range_days)
     return {
         "range_days": range_days,
         "start": start.isoformat(),
@@ -143,10 +167,19 @@ def command_centre_dashboard_v12(
             "average_monthly_income": _monthly(income_cents, range_days),
             "average_monthly_commitments": _monthly(commitments_cents, range_days),
             "average_monthly_planned": _monthly(planned_cents, range_days),
-            "average_monthly_net_forecast": _monthly(income_cents - commitments_cents, range_days),
+            "average_monthly_net_forecast": average_net,
+            "average_monthly_balance": average_net,
         },
-        "budget_overview": budgets.get("categories", [])[:5] if isinstance(budgets, dict) else [],
+        "budget_overview": budgets.get("budgets", [])[:5] if isinstance(budgets, dict) else [],
         "goals": goals[:4],
-        "attention": {"suggestions": attention},
+        "attention": {
+            "headline": health["headline"],
+            "insights": health["active_insight_count"],
+            "warnings": health["warning_count"],
+            "attention_count": health["attention_count"],
+            "opportunities": health["opportunity_count"],
+            "top": top_insights,
+        },
+        "financial_health": health,
         "counts": {"bills": len(bills), "recurring": len(recurring), "income": len(income), "goals": len(goals)},
     }
