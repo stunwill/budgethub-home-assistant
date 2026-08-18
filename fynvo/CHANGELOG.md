@@ -1,5 +1,37 @@
 # Fynvo Add-on Changelog
 
+## v0.14.0
+
+### Added
+- First-class explainable Financial Insights with evidence, severity, lifecycle status and drill-down targets.
+- Financial Health overview across Cash Flow, Budgets, Spending, Recurring Commitments, Income, Goals and Data Quality without an opaque overall score.
+- Cash Flow Insights for projected shortfalls, low-balance periods and unusually concentrated upcoming commitments.
+- Budget Insights for projected overspend, budget pace, positive tracking and unbudgeted categories.
+- Rolling 8-week spending trend Insights that respect one-off baseline exclusions.
+- Recurring commitment monthly and annual equivalent analysis.
+- Income versus expected schedule analysis and a guarded savings-rate calculation when data quality is sufficient.
+- Goal health Insights for ahead/behind status and competing contribution requirements.
+- Scenario impact Insights using isolated baseline-versus-scenario comparisons.
+- Data Quality Insights for uncategorised transactions, reconciliation backlog and stale connected-bank data.
+- Insight dismissal, reviewed and resolved states with suppression of unchanged dismissed conditions.
+- Responsive Insights page with Financial Health dimensions, filtering, explainable evidence and context actions.
+- Overview Financial Health card showing only the highest-priority active Insights.
+
+### Changed
+- Version updated to 0.14.0 across Home Assistant add-on, backend and frontend metadata.
+- Overview attention handling now uses the shared Insights and Financial Health service instead of only counting Spending Intelligence suggestions.
+- Budget Overview now consumes the actual budget-analysis rows returned by the Budget service.
+- Quick Stats now consistently labels average monthly net forecast.
+
+### Security and privacy
+- Insight generation runs locally against the household's existing Fynvo data.
+- No household financial records are sent to an external AI or analytics service for v0.14.0 Insights.
+- Insight wording remains factual and avoids unsupported personal financial recommendations.
+
+### Deferred
+- Home Assistant financial sensors, cards and automations remain scheduled for v0.15.0.
+- Production CDR provider expansion, richer Reports, multi-user permissions, User Activity, Audit Logs and Record Change History remain production-readiness work before v1.0.
+
 ## v0.13.0
 
 ### Added
