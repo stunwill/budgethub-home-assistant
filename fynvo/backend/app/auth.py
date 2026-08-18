@@ -1,194 +1,62 @@
 from datetime import timedelta
-from hashlib import sha256
 
 from fastapi import Cookie, Depends, HTTPException, Request, Response, status
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session as DbSession
 
+from .auth_lifecycle import (
+    admin_auth_diagnostics,
+    bootstrap_configured,
+    initialize_authentication,
+    public_auth_status,
+    validate_admin_values,
+)
 from .config import get_settings
 from .database import get_db
-from .models import AppConfig, LoginAttempt, Session, User
-from .security import (
-    expiry_from_now,
-    hash_password,
-    hash_token,
-    new_session_token,
-    utcnow,
-    verify_password,
-)
+from .models import LoginAttempt, Session, User
+from .security import expiry_from_now, hash_password, hash_token, new_session_token, utcnow, verify_password
 
 DB_DEPENDENCY = Depends(get_db)
 SESSION_COOKIE = Cookie(default=None, alias="fynvo_session")
-MIN_BOOTSTRAP_PASSWORD_LENGTH = 8
-CONFIG_FINGERPRINT_KEY = "admin_config_fingerprint"
-CONFIG_APPLIED_KEY = "admin_config_applied"
-CONFIG_ERROR_KEY = "admin_bootstrap_error"
-CONFIG_MIGRATION_KEY = "admin_config_adopted_v013"
 
 
 def get_client_key(request: Request) -> str:
-    forwarded_for = request.headers.get("x-forwarded-for")
-    if forwarded_for:
-        return forwarded_for.split(",", 1)[0].strip()
+    """Return a conservative deployment key for rate limiting.
+
+    Home Assistant ingress commonly proxies many browser requests through one peer. We do not
+    trust forwarding headers supplied by arbitrary clients. Rate limiting is primarily scoped by
+    normalised account identity, with the direct peer only as a secondary dimension.
+    """
+
     return request.client.host if request.client else "unknown"
 
 
-def bootstrap_configured() -> bool:
-    settings = get_settings()
-    return bool(settings.admin_username and settings.admin_password)
+def bootstrap_initial_admin(db: DbSession) -> dict[str, str | bool | int | None]:
+    """Compatibility wrapper for the authoritative v0.15 startup lifecycle service."""
 
-
-def _app_config_value(db: DbSession, key: str) -> str | None:
-    row = db.get(AppConfig, key)
-    return row.value if row else None
-
-
-def _set_app_config(db: DbSession, key: str, value: str) -> None:
-    db.merge(AppConfig(key=key, value=value, updated_at=utcnow()))
-
-
-def _credential_fingerprint(username: str, password: str) -> str:
-    return sha256(f"{username}\0{password}".encode()).hexdigest()
-
-
-def _validate_admin_values(username: str | None, password: str | None, display_name: str | None) -> tuple[str, str, str]:
-    username_value = (username or "").strip().lower()
-    display_name_value = (display_name or username_value).strip()
-    password_value = password or ""
-    if len(username_value) < 3:
-        raise ValueError("Administrator username must be at least 3 characters.")
-    if len(display_name_value) < 1:
-        raise ValueError("Administrator display name is required.")
-    if len(password_value) < MIN_BOOTSTRAP_PASSWORD_LENGTH:
-        raise ValueError("Administrator password must be at least 8 characters.")
-    if password_value.lower() in {"password", "admin", "changeme", "fynvo", "admin123"}:
-        raise ValueError("Administrator password is too easy to guess.")
-    return username_value, display_name_value, password_value
-
-
-def _apply_credentials(user: User, username: str, display_name: str, password: str) -> None:
-    user.username = username
-    user.display_name = display_name
-    user.password_hash = hash_password(password)
-    user.is_admin = True
-    user.is_active = True
-    user.updated_at = utcnow()
-
-
-def bootstrap_initial_admin(db: DbSession) -> dict[str, str | bool]:
-    """Apply the supported Home Assistant administrator bootstrap/recovery configuration.
-
-    v0.12 only applied configured credentials when the database contained no users. Existing
-    installations could therefore show one username/password in Home Assistant while a different
-    persisted account remained authoritative. v0.13 adopts configured credentials once for a
-    single legacy administrator, then requires explicit recovery mode for later credential resets.
-    """
-
-    settings = get_settings()
-    users = list(db.scalars(select(User).order_by(User.id)).all())
-    if not bootstrap_configured():
-        return {"created": False, "recovered": False, "adopted": False, "message": "No administrator bootstrap configuration supplied."}
-
-    try:
-        username, display_name, password = _validate_admin_values(
-            settings.admin_username,
-            settings.admin_password,
-            settings.admin_display_name,
-        )
-    except ValueError as exc:
-        _set_app_config(db, CONFIG_ERROR_KEY, str(exc))
-        db.commit()
-        return {"created": False, "recovered": False, "adopted": False, "message": str(exc)}
-
-    fingerprint = _credential_fingerprint(username, password)
-    stored_fingerprint = _app_config_value(db, CONFIG_FINGERPRINT_KEY)
-
-    if not users:
-        user = User(
-            username=username,
-            display_name=display_name,
-            password_hash=hash_password(password),
-            is_admin=True,
-            is_active=True,
-        )
-        db.add(user)
-        _set_app_config(db, "admin_bootstrap_completed", "true")
-        _set_app_config(db, CONFIG_FINGERPRINT_KEY, fingerprint)
-        _set_app_config(db, CONFIG_APPLIED_KEY, utcnow().isoformat())
-        _set_app_config(db, CONFIG_ERROR_KEY, "")
-        db.commit()
-        return {"created": True, "recovered": False, "adopted": False, "message": "Initial administrator created from Home Assistant configuration."}
-
-    admins = [user for user in users if user.is_admin]
-    configured_user = next((user for user in users if user.username == username), None)
-
-    if settings.admin_recovery_mode:
-        target = configured_user
-        if target is None and len(admins) == 1:
-            target = admins[0]
-        if target is None:
-            target = User(username=username, display_name=display_name, password_hash=hash_password(password), is_admin=True, is_active=True)
-            db.add(target)
-        else:
-            collision = db.scalar(select(User).where(User.username == username, User.id != target.id))
-            if collision is not None:
-                message = "Administrator recovery could not apply because the configured username is already in use."
-                _set_app_config(db, CONFIG_ERROR_KEY, message)
-                db.commit()
-                return {"created": False, "recovered": False, "adopted": False, "message": message}
-            _apply_credentials(target, username, display_name, password)
-        _set_app_config(db, "admin_recovery_last_run", utcnow().isoformat())
-        _set_app_config(db, CONFIG_FINGERPRINT_KEY, fingerprint)
-        _set_app_config(db, CONFIG_APPLIED_KEY, utcnow().isoformat())
-        _set_app_config(db, CONFIG_ERROR_KEY, "")
-        db.commit()
-        return {"created": False, "recovered": True, "adopted": False, "message": "Administrator credential recovery applied. Turn recovery mode off after confirming login."}
-
-    # v0.13 migration for the reported v0.12 failure: if one legacy administrator exists and the
-    # HA configuration has never been applied, adopt it once. This preserves the user row and all
-    # financial ownership references instead of deleting/recreating the account.
-    migration_done = _app_config_value(db, CONFIG_MIGRATION_KEY) == "true"
-    if len(admins) == 1 and stored_fingerprint is None and not migration_done:
-        target = admins[0]
-        collision = db.scalar(select(User).where(User.username == username, User.id != target.id))
-        if collision is None:
-            _apply_credentials(target, username, display_name, password)
-            _set_app_config(db, CONFIG_FINGERPRINT_KEY, fingerprint)
-            _set_app_config(db, CONFIG_APPLIED_KEY, utcnow().isoformat())
-            _set_app_config(db, CONFIG_MIGRATION_KEY, "true")
-            _set_app_config(db, CONFIG_ERROR_KEY, "")
-            db.commit()
-            return {"created": False, "recovered": False, "adopted": True, "message": "Existing administrator adopted the configured Home Assistant credentials for v0.13.0."}
-
-    if stored_fingerprint == fingerprint:
-        _set_app_config(db, CONFIG_ERROR_KEY, "")
-        db.commit()
-        return {"created": False, "recovered": False, "adopted": False, "message": "Configured administrator credentials are already applied."}
-
-    message = "Administrator already exists. To intentionally apply changed Home Assistant credentials, enable admin_recovery_mode for one restart, then turn it off."
-    _set_app_config(db, CONFIG_ERROR_KEY, message)
-    db.commit()
-    return {"created": False, "recovered": False, "adopted": False, "message": message}
+    result = initialize_authentication(db)
+    return {
+        "created": result.action == "bootstrap",
+        "recovered": result.action == "recovery",
+        "adopted": result.action == "legacy_adoption",
+        "message": result.message,
+        "state": result.state.value,
+        "user_id": result.user_id,
+    }
 
 
 def setup_required(db: DbSession) -> bool:
-    # Always evaluate configured bootstrap/recovery state. v0.12 only called bootstrap when there
-    # were zero users, which meant changed configuration could never repair an existing account.
-    if bootstrap_configured():
-        bootstrap_initial_admin(db)
     return (db.scalar(select(func.count(User.id))) or 0) == 0
 
 
-def authentication_status(db: DbSession) -> dict[str, str | int | bool | None]:
-    users_count = db.scalar(select(func.count(User.id))) or 0
-    admin = db.scalar(select(User).where(User.is_admin.is_(True)).order_by(User.id))
+def authentication_status(db: DbSession) -> dict[str, object]:
+    public = public_auth_status(db)
     return {
-        "ready": users_count > 0,
-        "administrator_configured": admin is not None,
-        "administrator_username": admin.username if admin else None,
-        "users": int(users_count),
+        "ready": public["authentication"] == "ready",
+        "administrator_configured": not bool(public["setup_required"]),
         "bootstrap_configured": bootstrap_configured(),
-        "configuration_message": _app_config_value(db, CONFIG_ERROR_KEY) or None,
+        "configuration_error": public["configuration_error"],
+        "recovery_required": public["recovery_required"],
     }
 
 
@@ -207,6 +75,14 @@ def is_rate_limited(db: DbSession, username: str, client_key: str) -> bool:
 
 
 def record_login_attempt(db: DbSession, username: str, client_key: str, success: bool) -> None:
+    if success:
+        db.execute(
+            delete(LoginAttempt).where(
+                LoginAttempt.username == username,
+                LoginAttempt.client_key == client_key,
+                LoginAttempt.success.is_(False),
+            )
+        )
     db.add(LoginAttempt(username=username, client_key=client_key, success=success))
     db.commit()
 
@@ -215,7 +91,7 @@ def create_initial_admin(db: DbSession, username: str, password: str, display_na
     if not setup_required(db):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Initial setup has already been completed")
     try:
-        username_value, display_name_value, password_value = _validate_admin_values(username, password, display_name)
+        username_value, display_name_value, password_value = validate_admin_values(username, password, display_name)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     user = User(username=username_value, display_name=display_name_value, password_hash=hash_password(password_value), is_admin=True)
@@ -227,6 +103,11 @@ def create_initial_admin(db: DbSession, username: str, password: str, display_na
 
 def authenticate_user(db: DbSession, username: str, password: str, client_key: str) -> User:
     username_normalised = username.strip().lower()
+    status_info = public_auth_status(db)
+    if status_info["configuration_error"]:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Authentication configuration requires administrator attention")
+    if status_info["recovery_required"]:
+        raise HTTPException(status_code=status.HTTP_428_PRECONDITION_REQUIRED, detail="Administrator recovery is required")
     if setup_required(db):
         raise HTTPException(status_code=status.HTTP_428_PRECONDITION_REQUIRED, detail="Administrator account is not configured")
     if is_rate_limited(db, username_normalised, client_key):
@@ -262,7 +143,7 @@ def start_session(response: Response, db: DbSession, user: User) -> str:
 
 def clear_session_cookie(response: Response) -> None:
     settings = get_settings()
-    response.delete_cookie(key=settings.session_cookie_name, path="/")
+    response.delete_cookie(key=settings.session_cookie_name, path="/", secure=settings.cookie_secure, httponly=True, samesite="lax")
 
 
 def get_current_user(
@@ -290,3 +171,30 @@ def revoke_current_session(response: Response, db: DbSession, token: str | None)
             session.revoked_at = utcnow()
             db.commit()
     clear_session_cookie(response)
+
+
+def revoke_user_sessions(db: DbSession, user_id: int) -> int:
+    sessions = list(db.scalars(select(Session).where(Session.user_id == user_id, Session.revoked_at.is_(None))).all())
+    now = utcnow()
+    for session in sessions:
+        session.revoked_at = now
+    db.commit()
+    return len(sessions)
+
+
+__all__ = [
+    "SESSION_COOKIE",
+    "admin_auth_diagnostics",
+    "authenticate_user",
+    "authentication_status",
+    "bootstrap_configured",
+    "bootstrap_initial_admin",
+    "clear_session_cookie",
+    "create_initial_admin",
+    "get_client_key",
+    "get_current_user",
+    "revoke_current_session",
+    "revoke_user_sessions",
+    "setup_required",
+    "start_session",
+]
