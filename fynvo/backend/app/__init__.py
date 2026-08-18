@@ -1,12 +1,11 @@
 """Fynvo application package.
 
-v0.14.0 keeps the stable v09 API wiring while attaching the current authentication,
-dashboard, Goals, Bank Connections, Scenario and Insights services through the existing
-`/api` router.
+v0.15.0 keeps the stable financial API wiring while attaching the authoritative
+administrator authentication lifecycle before Home Assistant integration surfaces.
 """
 
 from . import (
-    auth_v13,
+    auth_v15,
     banking_v12,
     budget_v14,
     dashboard_v12,
@@ -17,8 +16,7 @@ from . import (
 )
 
 # Replace the legacy Budget analysis route whose positional call placed `mode`
-# into the `category_id` parameter. The corrected v0.14 route uses explicit
-# keyword arguments and therefore stays consistent with the Insights service.
+# into the `category_id` parameter. The corrected route uses explicit arguments.
 v09.router.routes = [
     route
     for route in v09.router.routes
@@ -26,7 +24,7 @@ v09.router.routes = [
 ]
 v09.router.include_router(budget_v14.router)
 
-v09.router.include_router(auth_v13.router)
+v09.router.include_router(auth_v15.router)
 v09.router.include_router(dashboard_v12.router)
 v09.router.include_router(goals.router)
 v09.router.include_router(banking_v12.router)

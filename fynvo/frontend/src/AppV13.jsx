@@ -10,6 +10,7 @@ const api = (path, options = {}) => fetch(`api${path}`, {
 
 export default function AppV13() {
   const [auth, setAuth] = useState(null);
+  const [recoveryWarningDismissed, setRecoveryWarningDismissed] = useState(false);
   const observerRef = useRef(null);
 
   async function refreshAuth() {
@@ -49,5 +50,13 @@ export default function AppV13() {
     />;
   }
 
-  return <App />;
+  return <>
+    {auth.recovery_mode && !recoveryWarningDismissed && (
+      <div className="fynvo-recovery-warning" role="status" aria-live="polite">
+        <span><strong>Administrator recovery mode is enabled.</strong> Confirm this login works, then disable <code>admin_recovery_mode</code> in the Home Assistant add-on Configuration page and restart Fynvo.</span>
+        <button type="button" onClick={() => setRecoveryWarningDismissed(true)} aria-label="Dismiss administrator recovery warning">Dismiss</button>
+      </div>
+    )}
+    <App />
+  </>;
 }
