@@ -1,11 +1,19 @@
+from app.auth_lifecycle import initialize_authentication
+from app.config import get_settings
+from app.database import get_session_factory
 from app.security import hash_password, verify_password
 
 
-def test_health_endpoint_reports_v0140(client):
+def _run_auth_startup():
+    with get_session_factory()() as db:
+        return initialize_authentication(db)
+
+
+def test_health_endpoint_reports_v0150(client):
     response = client.get("/api/health")
     assert response.status_code == 200
     assert response.json()["service"] == "Fynvo"
-    assert response.json()["version"] == "0.14.0"
+    assert response.json()["version"] == "0.15.0"
 
 
 def test_password_hashing_does_not_store_plaintext():
@@ -61,9 +69,10 @@ def test_admin_bootstrap_from_home_assistant_configuration(client, monkeypatch):
     monkeypatch.setenv("FYNVO_ADMIN_USERNAME", "owner")
     monkeypatch.setenv("FYNVO_ADMIN_DISPLAY_NAME", "Owner")
     monkeypatch.setenv("FYNVO_ADMIN_PASSWORD", "OwnerPassword123!")
-    from app.config import get_settings
-
     get_settings.cache_clear()
+    result = _run_auth_startup()
+    assert result.action == "bootstrap"
+
     state = client.get("/api/auth/state").json()
     assert state["setup_required"] is False
     login = client.post("/api/auth/login", json={"username": "owner", "password": "OwnerPassword123!"})
@@ -80,9 +89,9 @@ def test_admin_bootstrap_from_home_assistant_configuration(client, monkeypatch):
 def test_invalid_admin_bootstrap_does_not_create_user(client, monkeypatch):
     monkeypatch.setenv("FYNVO_ADMIN_USERNAME", "ow")
     monkeypatch.setenv("FYNVO_ADMIN_PASSWORD", "password")
-    from app.config import get_settings
-
     get_settings.cache_clear()
+    result = _run_auth_startup()
+    assert result.state.value == "AUTH_CONFIGURATION_ERROR"
     state = client.get("/api/auth/state").json()
-    assert state["setup_required"] is True
-    assert client.post("/api/auth/login", json={"username": "ow", "password": "password"}).status_code == 428
+    assert state["configuration_error"] is True
+    assert client.post("/api/auth/login", json={"username": "ow", "password": "password"}).status_code == 503
