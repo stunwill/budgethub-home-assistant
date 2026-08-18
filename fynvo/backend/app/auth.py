@@ -48,7 +48,7 @@ def _set_app_config(db: DbSession, key: str, value: str) -> None:
 
 
 def _credential_fingerprint(username: str, password: str) -> str:
-    return sha256(f"{username}\0{password}".encode("utf-8")).hexdigest()
+    return sha256(f"{username}\0{password}".encode()).hexdigest()
 
 
 def _validate_admin_values(username: str | None, password: str | None, display_name: str | None) -> tuple[str, str, str]:
