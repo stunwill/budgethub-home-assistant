@@ -1,0 +1,322 @@
+:root {
+  --fynvo-navy: #061c4b;
+  --fynvo-navy-2: #08265f;
+  --fynvo-blue: #075eff;
+  --fynvo-blue-2: #0d76ff;
+  --fynvo-text: #071844;
+  --fynvo-muted: #66769c;
+  --fynvo-line: #d9e2f1;
+  --fynvo-auth-font: "Galano Grotesque", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.fynvo-auth-page {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(460px, 47%) 1fr;
+  background: radial-gradient(circle at 88% 8%, rgba(31, 101, 255, .1), transparent 34%), #f4f7fc;
+  color: var(--fynvo-text);
+  overflow: hidden;
+}
+
+.fynvo-auth-brand-panel {
+  position: relative;
+  min-height: 100dvh;
+  color: #fff;
+  background:
+    radial-gradient(circle at 115% 40%, rgba(17, 101, 255, .72), transparent 48%),
+    radial-gradient(circle at 8% 20%, rgba(0, 89, 255, .16), transparent 38%),
+    linear-gradient(150deg, #041834 0%, #06204e 54%, #06306f 100%);
+  overflow: hidden;
+}
+
+.fynvo-auth-brand-panel::after {
+  content: "";
+  position: absolute;
+  width: min(48vw, 880px);
+  aspect-ratio: 1;
+  right: -32%;
+  top: 5%;
+  border: 1px solid rgba(104, 160, 255, .13);
+  border-radius: 50%;
+  box-shadow: 0 0 0 70px rgba(48, 112, 255, .035), 0 0 0 140px rgba(48, 112, 255, .025);
+}
+
+.fynvo-auth-brand-inner {
+  position: relative;
+  z-index: 1;
+  width: min(78%, 720px);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: clamp(42px, 5vh, 92px) 0 70px;
+  display: flex;
+  flex-direction: column;
+}
+
+.fynvo-auth-brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font-family: var(--fynvo-auth-font);
+  font-size: clamp(28px, 2vw, 42px);
+  letter-spacing: -.03em;
+}
+
+.fynvo-auth-brand-lockup img {
+  width: clamp(52px, 4vw, 76px);
+  height: clamp(52px, 4vw, 76px);
+  object-fit: contain;
+}
+
+.fynvo-auth-brand-copy { margin-top: clamp(76px, 11vh, 150px); max-width: 550px; }
+.fynvo-auth-brand-copy h1,
+.fynvo-auth-mobile-intro h1,
+.fynvo-auth-heading h2,
+.fynvo-auth-field > span,
+.fynvo-auth-feature h3,
+.fynvo-auth-submit {
+  font-family: var(--fynvo-auth-font);
+  font-weight: 500;
+}
+
+.fynvo-auth-brand-copy h1 {
+  margin: 0;
+  font-size: clamp(52px, 4.7vw, 88px);
+  line-height: .98;
+  letter-spacing: -.045em;
+}
+.fynvo-auth-brand-copy h1 span,
+.fynvo-auth-mobile-intro h1 span { color: #1380ff; }
+.fynvo-auth-brand-copy > p {
+  margin: 30px 0 0;
+  max-width: 470px;
+  color: rgba(239, 246, 255, .78);
+  font-size: clamp(18px, 1.5vw, 26px);
+  line-height: 1.55;
+}
+
+.fynvo-auth-features { margin-top: clamp(56px, 8vh, 110px); width: min(100%, 520px); }
+.fynvo-auth-feature {
+  display: grid;
+  grid-template-columns: 68px 1fr;
+  gap: 24px;
+  align-items: center;
+  padding: 25px 0;
+  border-bottom: 1px solid rgba(255,255,255,.12);
+}
+.fynvo-auth-feature:last-child { border-bottom: 0; }
+.fynvo-auth-feature-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(145deg, rgba(8, 102, 255, .34), rgba(9, 68, 154, .22));
+  color: #1681ff;
+}
+.fynvo-auth-feature-icon svg { width: 32px; height: 32px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.fynvo-auth-feature h3 { margin: 0 0 8px; font-size: 20px; }
+.fynvo-auth-feature p { margin: 0; color: rgba(235, 244, 255, .72); line-height: 1.45; font-size: 16px; }
+
+.fynvo-auth-chart {
+  margin-top: auto;
+  height: 128px;
+  position: relative;
+  opacity: .62;
+  background: linear-gradient(174deg, transparent 48%, rgba(14,117,255,.9) 49%, rgba(14,117,255,.9) 50%, transparent 51%);
+}
+.fynvo-auth-chart i {
+  position: absolute;
+  bottom: 0;
+  width: 11%;
+  background: linear-gradient(to top, rgba(13, 98, 218, .46), rgba(13, 98, 218, .06));
+  border-radius: 7px 7px 0 0;
+}
+.fynvo-auth-chart i:nth-child(1){left:12%;height:20%}.fynvo-auth-chart i:nth-child(2){left:24%;height:29%}.fynvo-auth-chart i:nth-child(3){left:36%;height:39%}.fynvo-auth-chart i:nth-child(4){left:48%;height:54%}.fynvo-auth-chart i:nth-child(5){left:60%;height:67%}.fynvo-auth-chart i:nth-child(6){left:72%;height:82%}.fynvo-auth-chart i:nth-child(7){left:84%;height:94%}.fynvo-auth-chart i:nth-child(8){left:96%;height:100%}
+
+.fynvo-auth-form-panel {
+  position: relative;
+  min-width: 0;
+  min-height: 100dvh;
+  padding: clamp(32px, 5vw, 96px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.fynvo-auth-form-panel::before,
+.fynvo-auth-form-panel::after {
+  content: "";
+  position: absolute;
+  width: 360px;
+  height: 360px;
+  right: -170px;
+  top: -170px;
+  border: 1px solid rgba(28, 87, 178, .08);
+  border-radius: 50%;
+}
+.fynvo-auth-form-panel::after { width: 520px; height: 520px; right: -250px; top: -250px; }
+
+.fynvo-auth-mobile-intro { display: none; }
+.fynvo-auth-card {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 620px);
+  padding: clamp(42px, 4.5vw, 76px);
+  border: 1px solid rgba(26, 58, 113, .08);
+  border-radius: 34px;
+  background: rgba(255,255,255,.96);
+  box-shadow: 0 30px 90px rgba(15, 53, 111, .12);
+}
+.fynvo-auth-card-logo { display: block; width: min(230px, 48%); max-height: 160px; object-fit: contain; margin: 0 auto 30px; }
+.fynvo-auth-heading { text-align: center; margin-bottom: 42px; }
+.fynvo-auth-heading h2 { margin: 0; font-size: clamp(30px, 2.6vw, 42px); letter-spacing: -.025em; }
+.fynvo-auth-heading p { margin: 10px 0 0; color: var(--fynvo-muted); font-size: 17px; }
+
+.fynvo-auth-notice,
+.fynvo-auth-error {
+  margin: -12px 0 24px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.fynvo-auth-notice { background: #eef5ff; color: #20477e; border: 1px solid #d5e4fb; }
+.fynvo-auth-error { display: grid; gap: 3px; background: #fff2f2; color: #8d2020; border: 1px solid #f4caca; }
+
+.fynvo-auth-field { display: block; margin: 0 0 25px; }
+.fynvo-auth-field > span { display: block; margin: 0 0 10px; font-size: 16px; color: var(--fynvo-text); }
+.fynvo-auth-input {
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  align-items: center;
+  gap: 13px;
+  min-height: 62px;
+  padding: 0 18px;
+  border: 1px solid var(--fynvo-line);
+  border-radius: 12px;
+  background: #fff;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.fynvo-auth-input:focus-within { border-color: #6da2ff; box-shadow: 0 0 0 4px rgba(24, 101, 255, .09); }
+.fynvo-auth-input > i { color: #6d7da4; display: grid; place-items: center; }
+.fynvo-auth-input > i svg,
+.fynvo-auth-eye svg,
+.fynvo-auth-submit svg,
+.fynvo-auth-security > svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.fynvo-auth-input input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--fynvo-text);
+  font: inherit;
+  font-size: 17px;
+}
+.fynvo-auth-input input::placeholder { color: #8896b4; }
+.fynvo-auth-eye { border: 0; background: transparent; padding: 9px; color: #6d7da4; cursor: pointer; border-radius: 8px; }
+.fynvo-auth-eye:hover { color: var(--fynvo-blue); background: #f2f6ff; }
+.fynvo-auth-eye:focus-visible { outline: 3px solid rgba(14, 104, 255, .24); }
+
+.fynvo-auth-submit {
+  width: 100%;
+  min-height: 62px;
+  margin-top: 4px;
+  border: 0;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: linear-gradient(100deg, #0b5dff, #066bff);
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  box-shadow: 0 12px 26px rgba(4, 96, 255, .18);
+  transition: transform .15s ease, filter .15s ease, box-shadow .15s ease;
+}
+.fynvo-auth-submit:hover:not(:disabled) { filter: brightness(1.04); box-shadow: 0 15px 32px rgba(4, 96, 255, .26); }
+.fynvo-auth-submit:active:not(:disabled) { transform: translateY(1px); }
+.fynvo-auth-submit:focus-visible { outline: 4px solid rgba(14, 104, 255, .22); outline-offset: 3px; }
+.fynvo-auth-submit:disabled { cursor: wait; opacity: .72; }
+.fynvo-auth-submit svg { width: 22px; height: 22px; }
+
+.fynvo-auth-security {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 540px);
+  margin-top: 46px;
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 18px;
+  color: #68789d;
+}
+.fynvo-auth-security > svg { width: 34px; height: 34px; }
+.fynvo-auth-security strong { display: block; color: var(--fynvo-text); font-family: var(--fynvo-auth-font); font-weight: 500; margin-bottom: 5px; }
+.fynvo-auth-security p { margin: 0; line-height: 1.5; }
+
+@media (max-width: 1180px) {
+  .fynvo-auth-page { grid-template-columns: minmax(330px, 42%) 1fr; }
+  .fynvo-auth-brand-inner { width: 78%; }
+  .fynvo-auth-brand-copy { margin-top: 78px; }
+  .fynvo-auth-brand-copy h1 { font-size: clamp(42px, 5vw, 62px); }
+  .fynvo-auth-brand-copy > p { font-size: 17px; }
+  .fynvo-auth-features { margin-top: 45px; }
+  .fynvo-auth-feature { grid-template-columns: 54px 1fr; gap: 16px; padding: 18px 0; }
+  .fynvo-auth-feature-icon { width: 52px; height: 52px; }
+  .fynvo-auth-feature h3 { font-size: 17px; }
+  .fynvo-auth-feature p { font-size: 14px; }
+  .fynvo-auth-form-panel { padding: 42px; }
+  .fynvo-auth-card { max-width: 540px; padding: 48px; border-radius: 28px; }
+}
+
+@media (max-width: 900px) {
+  .fynvo-auth-page { display: block; min-height: 100dvh; overflow: auto; background: radial-gradient(circle at 75% 4%, rgba(20, 101, 255, .13), transparent 34%), #f7f9fd; }
+  .fynvo-auth-brand-panel { display: none; }
+  .fynvo-auth-form-panel { min-height: 100dvh; justify-content: flex-start; padding: 54px 32px 44px; }
+  .fynvo-auth-mobile-intro { display: flex; flex-direction: column; align-items: center; text-align: center; margin-bottom: 32px; position: relative; z-index: 1; }
+  .fynvo-auth-mobile-intro > img { width: 96px; height: 96px; object-fit: contain; }
+  .fynvo-auth-mobile-intro > strong { font-family: var(--fynvo-auth-font); font-size: 40px; line-height: 1; margin-top: 6px; }
+  .fynvo-auth-mobile-intro h1 { margin: 38px 0 0; font-size: 37px; line-height: 1.1; letter-spacing: -.035em; }
+  .fynvo-auth-mobile-intro p { color: var(--fynvo-muted); margin: 14px 0 0; font-size: 18px; }
+  .fynvo-auth-card { max-width: 680px; padding: 52px 56px; }
+  .fynvo-auth-card-logo { width: 190px; max-height: 130px; margin-bottom: 26px; }
+  .fynvo-auth-security { margin-top: 35px; max-width: 580px; }
+}
+
+@media (max-width: 560px) {
+  .fynvo-auth-form-panel { padding: 30px 18px 32px; }
+  .fynvo-auth-form-panel::before { width: 240px; height: 240px; right: -130px; top: -130px; }
+  .fynvo-auth-form-panel::after { width: 340px; height: 340px; right: -190px; top: -190px; }
+  .fynvo-auth-mobile-intro { margin-bottom: 25px; }
+  .fynvo-auth-mobile-intro > img { width: 78px; height: 78px; }
+  .fynvo-auth-mobile-intro > strong { font-size: 34px; }
+  .fynvo-auth-mobile-intro h1 { margin-top: 30px; font-size: 31px; }
+  .fynvo-auth-mobile-intro p { font-size: 16px; }
+  .fynvo-auth-card { width: 100%; padding: 34px 24px 30px; border-radius: 26px; box-shadow: 0 20px 55px rgba(15, 53, 111, .11); }
+  .fynvo-auth-card-logo { display: none; }
+  .fynvo-auth-heading { margin-bottom: 30px; }
+  .fynvo-auth-heading h2 { font-size: 29px; }
+  .fynvo-auth-heading p { font-size: 15px; line-height: 1.45; }
+  .fynvo-auth-field { margin-bottom: 20px; }
+  .fynvo-auth-field > span { font-size: 16px; }
+  .fynvo-auth-input { min-height: 58px; padding: 0 14px; gap: 10px; }
+  .fynvo-auth-input input { font-size: 16px; }
+  .fynvo-auth-submit { min-height: 58px; font-size: 17px; }
+  .fynvo-auth-security { width: 92%; grid-template-columns: 30px 1fr; gap: 12px; margin-top: 32px; text-align: left; }
+  .fynvo-auth-security > svg { width: 28px; height: 28px; }
+  .fynvo-auth-security p { font-size: 13px; }
+  .desktop-only { display: none; }
+}
+
+@media (max-height: 720px) and (min-width: 901px) {
+  .fynvo-auth-brand-inner { padding-top: 28px; padding-bottom: 30px; }
+  .fynvo-auth-brand-copy { margin-top: 44px; }
+  .fynvo-auth-features { margin-top: 28px; }
+  .fynvo-auth-feature { padding: 12px 0; }
+  .fynvo-auth-chart { display: none; }
+  .fynvo-auth-card { padding-top: 32px; padding-bottom: 32px; }
+  .fynvo-auth-card-logo { width: 160px; max-height: 110px; margin-bottom: 18px; }
+  .fynvo-auth-heading { margin-bottom: 25px; }
+  .fynvo-auth-security { margin-top: 22px; }
+}
