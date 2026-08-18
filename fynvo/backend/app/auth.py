@@ -14,7 +14,14 @@ from .auth_lifecycle import (
 from .config import get_settings
 from .database import get_db
 from .models import LoginAttempt, Session, User
-from .security import expiry_from_now, hash_password, hash_token, new_session_token, utcnow, verify_password
+from .security import (
+    expiry_from_now,
+    hash_password,
+    hash_token,
+    new_session_token,
+    utcnow,
+    verify_password,
+)
 
 DB_DEPENDENCY = Depends(get_db)
 SESSION_COOKIE = Cookie(default=None, alias="fynvo_session")
