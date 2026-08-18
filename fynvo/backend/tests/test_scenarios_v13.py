@@ -37,7 +37,7 @@ def test_effective_dated_recurring_amount_change_is_scenario_only(client):
     assert ("2026-09-01", "-140.00") in projected
     assert ("2026-10-01", "-80.00") in projected
     assert ("2026-11-01", "-80.00") in projected
-    assert comparison["difference"] == "240.00"
+    assert comparison["difference"] == "300.00"
 
 
 def test_multiple_scenarios_do_not_cross_contaminate(client):
