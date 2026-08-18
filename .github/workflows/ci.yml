@@ -51,6 +51,9 @@ jobs:
       - name: Install frontend dependencies
         working-directory: fynvo/frontend
         run: npm install
+      - name: Run responsive navigation tests
+        working-directory: fynvo/frontend
+        run: npm test
       - name: Build frontend
         working-directory: fynvo/frontend
         run: npm run build
@@ -85,8 +88,8 @@ jobs:
               raise SystemExit(f"Missing required config.yaml keys: {', '.join(missing)}")
           if config.get("slug") != "fynvo":
               raise SystemExit("config.yaml slug must be 'fynvo'")
-          if config.get("version") != "0.15.0":
-              raise SystemExit("config.yaml version must be 0.15.0")
+          if config.get("version") != "0.16.0":
+              raise SystemExit("config.yaml version must be 0.16.0")
           if config.get("ingress_port") != 8097:
               raise SystemExit("config.yaml ingress_port must be 8097")
           print("Home Assistant app metadata looks valid")
