@@ -2,6 +2,36 @@
 
 All notable Fynvo changes are documented here. Starting with v0.3.0, every release must include a user-readable changelog entry, Home Assistant-visible release notes and GitHub release notes.
 
+## v0.17.0 - Core Reliability & Pre-v1.0 Hardening
+
+### Fixed
+- Fixed the release-blocking Accounts `+ Add` workflow. New records were incorrectly sent to the update route as `PUT /api/accounts/null`, causing FastAPI to parse `null` as the integer `account_id` and return the reported raw validation error.
+- Fixed the shared create/edit modal contract so new records use the entity create endpoint with `POST`, while existing records continue to use the ID-based update endpoint with `PUT`.
+- Fixed internal transfers involving liability accounts so payments to a credit card or loan reduce the amount owing instead of increasing it.
+- Reinforced mobile drawer CSS so the application navigation remains off-canvas and closed by default at mobile widths.
+- Adjusted Australian date-only rendering so financial dates are anchored to local midnight rather than accidentally shifting because of UTC parsing.
+
+### Changed
+- Added friendly Account Type labels for Transaction Account, Savings Account, Offset Account, Credit Card, Cash, Mortgage, Personal Loan, Car Loan, Line of Credit, Investment Account, Superannuation, Other Asset and Other Liability.
+- Defined explicit asset/liability semantics. Liability opening balances are entered as positive amounts owing and Fynvo applies the internal balance rules.
+- Available Cash now intentionally includes only active Transaction, Savings, Offset and Cash balances. Investments, Superannuation, non-liquid assets and liabilities are excluded from Available Cash.
+- Archived accounts remain available for historical retrieval but are excluded from normal active account lists and cannot receive new manual transactions or transfers.
+- Normal validation failures are translated into concise user-facing messages instead of exposing raw Pydantic integer/field errors in the main workflow.
+- Mobile page actions and Account forms/modals are more compact and touch-friendly.
+- Updated release metadata to v0.17.0 across the Home Assistant add-on, backend and frontend.
+
+### Regression protection
+- Added the exact `Kristy - Main AC` account creation regression with a $2,000.00 opening balance, ING institution and generated Account ID.
+- Added same-ID Account edit/no-duplicate coverage.
+- Added Account balance, liability payment transfer, Available Cash, account-type metadata and archived-account write-protection tests.
+- Expanded frontend regression tests for create-versus-update routing, user-friendly Account types, validation messaging and reinforced mobile navigation behaviour.
+- Retained the v0.15 authentication/bootstrap/recovery/session regression suite and the v0.16 responsive navigation architecture.
+
+### Pre-v1.0 status
+- Added `docs/V1_READINESS_v0.17.0.md` with BLOCKER, HIGH, MEDIUM and LOW readiness gaps.
+- Real Home Assistant ingress testing, representative v0.16.0 upgrade validation and backup/restore validation remain required before Fynvo should be tagged v1.0.0.
+- The merged repository still does not contain the previously proposed Home Assistant financial sensor/entity implementation, so v0.17.0 does not claim those entities as delivered.
+
 ## v0.16.0 - Mobile Experience & Responsive Navigation
 
 ### Added
