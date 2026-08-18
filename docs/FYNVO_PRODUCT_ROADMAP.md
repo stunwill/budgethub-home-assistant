@@ -20,6 +20,7 @@ This roadmap is the canonical development queue for Fynvo. Future development sh
 14. Authentication must always have a documented owner bootstrap and recovery path.
 15. User activity, audit events and record change history must become explicit production-readiness capabilities before v1.0.
 16. Financial Insights must be evidence-backed, consistent with source financial calculations and free from unsupported personal financial advice.
+17. Fynvo must remain one responsive application across phone, tablet, desktop and Home Assistant ingress.
 
 ## Core product concepts
 
@@ -284,7 +285,7 @@ Forecast confidence calibration and long-term forecast-accuracy tracking remain 
 
 ### v0.14.0 - Insights & Financial Health
 
-Status: Implemented in the v0.14.0 development branch, pending PR validation and merge.
+Status: Completed.
 
 Delivered scope:
 - first-class Insights projection/lifecycle model with New, Reviewed, Dismissed and Resolved states;
@@ -308,6 +309,64 @@ Delivered scope:
 - responsive Insights interface with Financial Health dimensions, importance/category filters and expandable evidence;
 - Overview Financial Health integration that prioritises a small number of high-value active Insights;
 - local deterministic processing, with no external AI service receiving household transaction data.
+
+### v0.15.0 - Authentication Reliability & Recovery Hardening
+
+Status: Completed and merged.
+
+Delivered scope confirmed from the merged repository:
+- deterministic administrator authentication initialisation during FastAPI lifespan startup;
+- authoritative authentication lifecycle/state handling;
+- Home Assistant add-on option-source detection without logging secrets;
+- fresh-install administrator bootstrap;
+- explicit administrator recovery mode;
+- in-place administrator recovery preserving the user primary key and financial ownership relationships;
+- atomic recovery with rollback on failure;
+- deterministic recovery target selection and safe ambiguity/collision handling;
+- recovered-administrator session revocation;
+- stale failed-login cleanup for the recovered identity;
+- `session_days` consistency across browser cookie and database session expiry;
+- minimal public authentication state and protected administrator diagnostics;
+- authentication and legacy-database regression coverage;
+- Home Assistant ingress authentication remains the deployment boundary.
+
+The v0.15.0 release plan also proposed Home Assistant financial sensors/entities and automation actions. Those entities are not present in the actual merged repository and are therefore retained as future work rather than being marked delivered.
+
+### v0.16.0 - Mobile Experience & Responsive UI
+
+Status: Implemented in the v0.16.0 development branch, pending CI, real Home Assistant ingress mobile acceptance and PR merge.
+
+Scope:
+- Mobile Navigation Drawer;
+- Responsive Application Shell;
+- shared authoritative navigation configuration across breakpoints;
+- hamburger-controlled navigation closed by default on mobile;
+- backdrop and automatic dismissal after navigation;
+- mobile scroll locking and independent drawer scrolling;
+- iPhone safe-area and dynamic viewport handling;
+- active-route and touch-target improvements;
+- keyboard/Escape/focus accessibility improvements;
+- Mobile Dashboard Optimisation;
+- Mobile Tables;
+- Mobile Forms;
+- Responsive Modals;
+- Tablet Layout Refinement;
+- desktop navigation preservation;
+- responsive regression testing across representative phone, tablet and desktop viewport categories.
+
+Release gate: opening Fynvo through Home Assistant ingress on an iPhone-sized viewport must show financial page content immediately with the navigation closed. The drawer must open only from the hamburger control and close after route selection or backdrop dismissal.
+
+### Future Home Assistant Financial Integration
+
+Planned scope retained from the original v0.15.0 roadmap:
+- Home Assistant financial sensors/entities;
+- automation-friendly numeric financial state;
+- dashboard cards;
+- shortfall, upcoming bill, budget-risk, Insight and Goal automation foundations;
+- sensor-friendly Financial Health component states;
+- useful states such as available cash, forecast balance, lowest projected balance, overdue count, budget risk and Goal progress;
+- Home Assistant notifications/actions that link back to Fynvo without duplicating core financial calculations;
+- strict authentication/privacy boundary and no sensitive financial detail in entity attributes.
 
 ### Future production-readiness release - User Management, Activity, Audit Logs & Change History
 
@@ -335,16 +394,6 @@ Changed: 1 Oct 2026, 09:15 by Stu. Amount: `$140 → $80`. Effective: `1 Oct 202
 Audit event: Stu edited Telstra Internet.
 
 Change history: amount changed from `$140` to `$80`.
-
-### v0.15.0 - Home Assistant Integration
-
-Planned scope:
-- Home Assistant financial sensors;
-- dashboard cards;
-- automations for shortfalls, upcoming bills, budget warnings, Insight warnings and goal progress;
-- sensor-friendly Financial Health component states;
-- useful entities such as available cash, forecast balance, lowest projected balance, next bill, overdue count, budget risk and Goal progress;
-- Home Assistant notifications that link back to the relevant Fynvo detail view without duplicating core financial calculations.
 
 ### v1.0.0 - Production Release
 
