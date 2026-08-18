@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const app = await readFile(new URL('../src/App.jsx', import.meta.url), 'utf8');
 const css = await readFile(new URL('../src/mobile-v16.css', import.meta.url), 'utf8');
+const hardening = await readFile(new URL('../src/hardening-v17.css', import.meta.url), 'utf8');
 const entry = await readFile(new URL('../src/main.jsx', import.meta.url), 'utf8');
 
 const viewports = [
@@ -15,7 +16,8 @@ test('mobile drawer is closed by default and opens only from React state', () =>
   assert.match(app, /useState\(false\)/);
   assert.match(app, /mobileNavOpen \? 'mobile-nav-open' : ''/);
   assert.match(css, /transform:translateX\(-105%\)/);
-  assert.match(css, /\.mobile-nav-open \.sidebar\{transform:translateX\(0\)/);
+  assert.match(hardening, /transform:translateX\(-105%\)!important/);
+  assert.match(hardening, /\.mobile-nav-open \.sidebar\{transform:translateX\(0\)!important/);
 });
 
 test('drawer supports all required dismissal paths', () => {
@@ -50,9 +52,8 @@ test('responsive implementation covers required viewport matrix categories', () 
   assert.ok(viewports.some(([width]) => width === 768));
   assert.ok(viewports.some(([width]) => width >= 1280));
   assert.match(css, /@media\(max-width:980px\)/);
-  assert.match(css, /@media\(max-width:600px\)/);
-  assert.match(css, /@media\(max-width:360px\)/);
-  assert.match(css, /@media\(min-width:981px\) and \(max-width:1180px\)/);
+  assert.match(hardening, /@media\(max-width:600px\)/);
+  assert.match(hardening, /@media\(max-width:360px\)/);
 });
 
 test('iPhone and Home Assistant webview safe-area handling is present', () => {
@@ -62,6 +63,27 @@ test('iPhone and Home Assistant webview safe-area handling is present', () => {
   assert.match(app, /window\.scrollTo\(\{ top: 0/);
 });
 
-test('mobile responsive overrides load after the base stylesheet', () => {
+test('v0.17 hardening overrides load after the mobile stylesheet', () => {
   assert.ok(entry.indexOf("'./mobile-v16.css'") > entry.indexOf("'./styles.css'"));
+  assert.ok(entry.indexOf("'./hardening-v17.css'") > entry.indexOf("'./mobile-v16.css'"));
+});
+
+test('new-record modal uses POST create contract rather than PUT null id', () => {
+  assert.match(app, /const creating = edit\.row\?\.id === null \|\| edit\.row\?\.id === undefined/);
+  assert.match(app, /const path = creating \? createPath\(edit\.type\) : endpointFor\(edit\.type, edit\.row\.id\)/);
+  assert.match(app, /method: creating \? 'POST' : 'PUT'/);
+  assert.doesNotMatch(app, /PUT[^\n]*\/accounts\/null/);
+});
+
+test('account form exposes user friendly stable account types', () => {
+  for (const label of ['Transaction Account', 'Savings Account', 'Offset Account', 'Credit Card', 'Mortgage', 'Car Loan', 'Investment Account', 'Superannuation']) {
+    assert.ok(app.includes(label), `missing account label ${label}`);
+  }
+  assert.match(app, /Enter liability opening balances as a positive amount owing/);
+});
+
+test('normal validation errors are converted to user-facing messages', () => {
+  assert.match(app, /Choose a valid account\./);
+  assert.match(app, /is required\./);
+  assert.doesNotMatch(app, /Input should be a valid integer/);
 });

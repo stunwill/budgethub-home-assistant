@@ -18,9 +18,10 @@ This roadmap is the canonical development queue for Fynvo. Future development sh
 12. Treat Goals as forward-looking financial planning records distinct from Budgets and Planned Spending.
 13. The Overview dashboard should be a household financial command centre, not a development-status page.
 14. Authentication must always have a documented owner bootstrap and recovery path.
-15. User activity, audit events and record change history must become explicit production-readiness capabilities before v1.0.
+15. User activity, audit events and record change history must become explicit production-readiness capabilities before they are represented as delivered production features.
 16. Financial Insights must be evidence-backed, consistent with source financial calculations and free from unsupported personal financial advice.
 17. Fynvo must remain one responsive application across phone, tablet, desktop and Home Assistant ingress.
+18. Stable-version work must prioritise reliability, data preservation and verifiable core workflows over new feature expansion.
 
 ## Core product concepts
 
@@ -58,7 +59,7 @@ A versioned view of what data changed on a financial record, such as amount, dat
 
 Every release must include a version bump, database migrations where required, automated tests, CI validation, a CHANGELOG entry, Home Assistant release notes, GitHub release notes and user-readable release notes.
 
-Home Assistant ingress access, login, protected APIs and record-edit persistence are release blockers.
+Home Assistant ingress access, login, protected APIs, core create/edit persistence and safe upgrade behaviour are release blockers.
 
 ## Release plan
 
@@ -158,7 +159,7 @@ Status: Completed.
 
 Delivered scope:
 - full record editing for Accounts, Transactions, Categories, Bills, Recurring Expenses, Income, Planned Spending and Budgets;
-- edit forms discoverable from the current screens;
+- edit forms discoverable from current screens;
 - persistence after reload through update APIs;
 - effective-dated edit support for income, recurring expenses and budgets;
 - edit-history audit foundation;
@@ -166,40 +167,24 @@ Delivered scope:
 - account selection during import;
 - column mapping;
 - Australian date support: DD/MM/YYYY, DD/MM/YY and YYYY-MM-DD;
-- import preview;
-- invalid-row reporting;
-- duplicate detection;
-- duplicate skipping by default;
+- import preview, invalid-row reporting and duplicate detection;
 - matching suggestions against Bills, Recurring Expenses and Planned Spending;
-- Actual vs Expected variance for reconciliation links;
-- import batches and import history;
-- reconciliation review queue;
-- category suggestion foundation;
-- merchant/description normalisation foundation;
-- imported transactions feeding Budgeting, Cash Flow, Forecasting and future Reports.
+- import batches, import history and reconciliation review queue;
+- imported transactions feeding Budgeting, Cash Flow and Forecasting.
 
 ### v0.10.0 - Spending Intelligence
 
 Status: Completed.
 
 Delivered scope:
-- reusable source-independent spending intelligence service;
-- merchant/payee normalisation while preserving original descriptions;
-- user-managed merchant rules;
-- user-managed categorisation rules;
-- rule preview and safe historical rule application;
+- source-independent spending intelligence service;
+- merchant/payee normalisation and user-managed rules;
 - category suggestions with confidence and evidence;
+- recurring expense/income and amount-change detection;
 - Spending Intelligence review queue;
-- recurring expense detection;
-- recurring income detection;
-- recurring amount-change detection for increases and decreases;
-- accepted recurring detections create confirmed recurring records;
-- accepted amount changes use effective-dated change records where a matching record exists;
-- category spending trend analysis;
-- unusual-spending detection;
+- category spending trend analysis and unusual-spending detection;
 - one-off baseline exclusion;
-- merchant summary foundations;
-- local deterministic privacy-preserving analysis for future CDR/Open Banking, Goals, Scenarios and Insights.
+- local deterministic analysis.
 
 ### v0.11.0 - Goals & Financial Planning
 
@@ -207,61 +192,26 @@ Status: Completed.
 
 Delivered scope:
 - first-class Financial Goals domain;
-- savings, target-balance, planned-purchase, annual and debt-reduction goal types;
 - Goal creation, editing, completion and cancellation;
-- Goal progress with target, current, remaining and percentage complete;
-- weekly, true fortnightly and monthly required-contribution calculations;
-- calculated on-track, ahead and behind status;
-- forecast completion date from current contribution rate;
+- progress, contribution and forecast-completion calculations;
 - account allocations and unallocated savings reporting;
-- contribution tracking foundation;
-- Goal and Planned Spending link foundation;
-- Goal What-If contribution calculations using temporary forecast scenario impact;
-- command-centre dashboard aggregation endpoint;
-- redesigned Overview dashboard aligned to the supplied Fynvo mock-up;
-- five-card KPI row;
-- Cash Flow Forecast chart;
-- Forecast Summary;
-- Upcoming Commitments;
-- Upcoming events;
-- Top Planned Spending with Quick Add;
-- Quick Stats;
-- Budget Overview;
-- Goals dashboard section;
-- Spending Intelligence attention indicator;
-- removal of development-oriented panels from the household Overview;
-- improved Quick Add forms and validation feedback.
+- Goal What-If calculations;
+- command-centre dashboard aggregation;
+- redesigned Overview dashboard with KPI row, Cash Flow Forecast, Forecast Summary, Upcoming Commitments, Quick Stats, Budget Overview and Goals.
 
 ### v0.12.0 - Australian Open Banking / CDR Foundation, Admin Bootstrap & Branding
 
 Status: Completed.
 
 Delivered scope:
-- Home Assistant add-on administrator bootstrap configuration;
-- idempotent initial administrator creation when no users exist;
-- explicit administrator recovery mode;
-- password hashing and no permanent default credentials;
-- first-run messaging for missing administrator configuration;
-- provider-neutral Bank Connection architecture;
-- mock Australian CDR provider for development and testing;
-- institution discovery;
-- external account discovery;
-- external account to Fynvo account linking;
-- connected-account balance metadata;
+- Home Assistant administrator bootstrap configuration and explicit recovery mode;
+- provider-neutral Bank Connection architecture and mock Australian provider;
+- external account discovery/linking and connected-account balance metadata;
 - bank transaction ingestion through the existing Actual transaction table;
-- provider transaction identity tracking;
-- pending-to-posted matching foundation;
-- idempotent repeated sync;
-- sync history;
+- provider transaction identity tracking, pending-to-posted matching and sync history;
 - disconnect without deleting historical transactions;
-- merchant normalisation handoff;
-- reconciliation-link suggestions for Bills, Income and Planned Spending;
-- expected vs actual variance preservation;
-- Overview definitions corrected for Upcoming, Upcoming Commitments and Overdue;
-- Upcoming is the next seven-day financial agenda and can include income;
-- Upcoming Commitments uses the selected dashboard horizon and excludes ordinary income;
-- overdue unresolved items remain visible but separate from future Upcoming;
-- browser favicon and app metadata aligned to Fynvo branding.
+- reconciliation-link suggestions;
+- Fynvo branding/favicon and corrected Upcoming/Commitments definitions.
 
 Production CDR connectivity remains future work. v0.12.0 deliberately does not fabricate live bank connectivity without provider credentials, consent infrastructure or an appropriate Australian CDR intermediary.
 
@@ -270,147 +220,138 @@ Production CDR connectivity remains future work. v0.12.0 deliberately does not f
 Status: Completed.
 
 Delivered scope confirmed from the merged repository:
-- administrator credential adoption and recovery improvements so Home Assistant-configured credentials map to the persisted administrator account;
-- persistent authentication regression coverage across setup, restart, login and password changes;
-- responsive Fynvo login/authentication design foundations;
-- official Fynvo branding and bundled Galano Grotesque Medium typography foundations;
-- persistent Scenario records and Scenario adjustments;
-- isolated baseline-versus-scenario comparisons using the shared forecast engine;
-- effective-dated recurring-income and recurring-expense Scenario changes without mutating baseline records;
+- administrator credential adoption and recovery improvements;
+- authentication regression coverage;
+- responsive login/authentication foundations;
+- official Fynvo branding and bundled Galano Grotesque Medium typography;
+- persistent Scenario records/adjustments;
+- isolated baseline-versus-scenario comparisons;
+- effective-dated recurring-income/expense Scenario changes;
 - one-off Scenario income/expense changes;
-- Scenario created_by_user_id and updated_by_user_id metadata foundations;
-- release metadata corrected so Home Assistant can detect the v0.13.0 update.
-
-Forecast confidence calibration and long-term forecast-accuracy tracking remain future refinement areas rather than fabricated v0.13.0 functionality.
+- created/updated user metadata foundations.
 
 ### v0.14.0 - Insights & Financial Health
 
 Status: Completed.
 
 Delivered scope:
-- first-class Insights projection/lifecycle model with New, Reviewed, Dismissed and Resolved states;
-- deterministic Insight fingerprinting so unchanged dismissed conditions do not immediately reappear;
-- stale Insight resolution when the underlying condition no longer exists;
-- retained supporting evidence, source references, time period, confidence where appropriate and drill-down targets;
-- transparent Financial Health component summary with no opaque magic score;
-- Cash Flow health for projected shortfalls and low-balance periods;
-- upcoming financial-pressure detection based on scheduled commitments and an explicit comparison basis;
-- Budget health using the existing Budget analysis service, including projected overspend, budget pace and meaningful positive tracking;
-- unbudgeted-spending Insights;
-- comparable rolling 8-week category-spending trends with one-off baseline exclusions respected;
-- reuse of existing Spending Intelligence anomaly and recurring-change evidence rather than duplicate detection logic;
-- recurring commitment monthly and annual equivalent analysis;
-- Income versus scheduled-income analysis;
-- guarded savings-rate calculation only when the underlying data is sufficiently complete;
-- Goal ahead/behind Insights and combined Goal contribution pressure versus forecast surplus;
-- active Scenario impact Insights using isolated baseline-versus-scenario comparisons;
-- Data Quality Insights for uncategorised transactions, reconciliation backlog and stale connected-bank data;
-- authenticated Insights APIs for list, detail, refresh, review and dismissal;
-- responsive Insights interface with Financial Health dimensions, importance/category filters and expandable evidence;
-- Overview Financial Health integration that prioritises a small number of high-value active Insights;
-- local deterministic processing, with no external AI service receiving household transaction data.
+- first-class Insights lifecycle with New, Reviewed, Dismissed and Resolved states;
+- deterministic fingerprinting and stale-resolution behaviour;
+- Financial Health component summary;
+- Cash Flow, Budget, Spending, Recurring Commitment, Income, Goal, Scenario and Data Quality Insights;
+- evidence/reference retention and authenticated Insights APIs;
+- responsive Insights interface and Overview Financial Health integration;
+- local deterministic processing.
 
 ### v0.15.0 - Authentication Reliability & Recovery Hardening
 
 Status: Completed and merged.
 
 Delivered scope confirmed from the merged repository:
-- deterministic administrator authentication initialisation during FastAPI lifespan startup;
+- deterministic administrator authentication initialisation during application startup;
 - authoritative authentication lifecycle/state handling;
-- Home Assistant add-on option-source detection without logging secrets;
+- safe Home Assistant option-source diagnostics;
 - fresh-install administrator bootstrap;
 - explicit administrator recovery mode;
-- in-place administrator recovery preserving the user primary key and financial ownership relationships;
-- atomic recovery with rollback on failure;
-- deterministic recovery target selection and safe ambiguity/collision handling;
-- recovered-administrator session revocation;
-- stale failed-login cleanup for the recovered identity;
-- `session_days` consistency across browser cookie and database session expiry;
+- in-place, atomic administrator recovery preserving ownership relationships;
+- deterministic recovery-target safety;
+- recovered-session revocation and stale failed-login cleanup;
+- `session_days` consistency;
 - minimal public authentication state and protected administrator diagnostics;
-- authentication and legacy-database regression coverage;
-- Home Assistant ingress authentication remains the deployment boundary.
+- authentication/legacy-database regression coverage;
+- Home Assistant ingress authentication boundary.
 
-The v0.15.0 release plan also proposed Home Assistant financial sensors/entities and automation actions. Those entities are not present in the actual merged repository and are therefore retained as future work rather than being marked delivered.
+The v0.15.0 plan also proposed Home Assistant financial sensors/entities and automation actions. Those entities are not present in the actual merged repository and are therefore retained as future work rather than marked delivered.
 
 ### v0.16.0 - Mobile Experience & Responsive UI
 
-Status: Implemented in the v0.16.0 development branch, pending CI, real Home Assistant ingress mobile acceptance and PR merge.
+Status: Completed and merged.
 
-Scope:
-- Mobile Navigation Drawer;
-- Responsive Application Shell;
-- shared authoritative navigation configuration across breakpoints;
-- hamburger-controlled navigation closed by default on mobile;
-- backdrop and automatic dismissal after navigation;
-- mobile scroll locking and independent drawer scrolling;
+Delivered scope confirmed from the merged repository:
+- shared responsive application shell;
+- one authoritative navigation configuration;
+- hamburger-controlled off-canvas mobile drawer closed by default;
+- backdrop, close, Escape and route-selection dismissal;
+- background scroll locking and independent drawer scrolling;
 - iPhone safe-area and dynamic viewport handling;
-- active-route and touch-target improvements;
-- keyboard/Escape/focus accessibility improvements;
-- Mobile Dashboard Optimisation;
-- Mobile Tables;
-- Mobile Forms;
-- Responsive Modals;
-- Tablet Layout Refinement;
-- desktop navigation preservation;
-- responsive regression testing across representative phone, tablet and desktop viewport categories.
+- active-route, touch-target, keyboard and focus accessibility improvements;
+- responsive mobile forms, tables, modals and dashboard/card layouts;
+- tablet layout refinement and desktop sidebar preservation;
+- responsive regression tests.
 
-Release gate: opening Fynvo through Home Assistant ingress on an iPhone-sized viewport must show financial page content immediately with the navigation closed. The drawer must open only from the hamburger control and close after route selection or backdrop dismissal.
+A real installed Home Assistant/iPhone acceptance run remains an operational acceptance requirement and is carried forward into v0.17.0 rather than being treated as automatically proven by source-level tests.
+
+### v0.17.0 - Pre-v1.0 Reliability & Responsive Hardening
+
+Status: In development. Automated implementation is complete when CI passes; installed Home Assistant acceptance remains release-gating.
+
+Delivered/implemented scope:
+- root-cause correction for the Accounts `+ Add` failure where the generic modal generated `PUT /api/accounts/null`;
+- create/update contract separation in the shared frontend workflow, with `POST` for new records and ID-based `PUT` for persisted records;
+- exact `Kristy - Main AC` Account create/edit regression coverage;
+- generated Account ID, persistence and no-duplicate edit coverage;
+- expanded friendly Account Types including Offset, Car Loan, Line of Credit, Investment and Superannuation, while retaining legacy `vehicle_loan` compatibility;
+- explicit asset/liability Account classification;
+- positive amount-owing UX for liability opening balances;
+- Available Cash limited to active Transaction, Savings, Offset and Cash accounts;
+- Account balance, cent-precision and transaction relationship regression coverage;
+- liability-aware internal transfer semantics;
+- archived-account write protection while retaining historical retrieval;
+- user-facing validation messages for normal create/edit failures;
+- Australian date-only display hardening;
+- reinforced mobile off-canvas navigation styling and regression checks;
+- compact mobile Account/page actions and safer mobile modal action placement;
+- v0.15 authentication regression preservation;
+- v1.0 readiness assessment in `docs/V1_READINESS_v0.17.0.md`;
+- release metadata, changelog and release-note updates.
+
+Release gates still requiring the installed product environment:
+- create `Kristy - Main AC` through the normal UI and confirm persistence across reload, add-on restart and logout/login;
+- complete the iPhone/Home Assistant ingress mobile drawer workflow;
+- verify configured administrator/recovery behaviour after add-on restart;
+- test representative v0.16.0 household data upgraded to v0.17.0 without data loss;
+- complete backup/restore validation before stable v1.0.0 tagging.
+
+### v1.0.0 - Stable Production Release
+
+Planned scope after the v0.17.0 acceptance gates pass:
+- final acceptance QA of functionality already delivered;
+- final v0.17-to-v1 upgrade/migration validation and representative older-data upgrade confirmation;
+- backup and restore validation/documentation;
+- final database integrity and recovery checks;
+- final authentication/session/security review;
+- Home Assistant ingress installation/onboarding validation;
+- privacy, retention and safe diagnostic documentation for the functionality actually present;
+- performance validation on representative household histories;
+- final defects identified during acceptance;
+- known-limitations documentation;
+- production packaging, release notes and stable version tagging.
+
+v1.0.0 must not become another large feature-expansion release. Capabilities not already dependable should remain explicitly future work rather than being added solely to satisfy the version number.
 
 ### Future Home Assistant Financial Integration
 
-Planned scope retained from the original v0.15.0 roadmap:
+Planned scope retained because it is not present in the actual merged v0.16.0 source:
 - Home Assistant financial sensors/entities;
 - automation-friendly numeric financial state;
 - dashboard cards;
 - shortfall, upcoming bill, budget-risk, Insight and Goal automation foundations;
 - sensor-friendly Financial Health component states;
 - useful states such as available cash, forecast balance, lowest projected balance, overdue count, budget risk and Goal progress;
-- Home Assistant notifications/actions that link back to Fynvo without duplicating core financial calculations;
-- strict authentication/privacy boundary and no sensitive financial detail in entity attributes.
+- Home Assistant notifications/actions that link back to Fynvo without duplicating core calculations;
+- strict authentication/privacy boundary and no sensitive detail in entity attributes.
 
-### Future production-readiness release - User Management, Activity, Audit Logs & Change History
+### Future Household Production Capabilities
 
-Planned scope before or as part of v1.0 readiness:
-- household user creation, editing, deactivation and reactivation;
-- password reset and password recovery workflows;
-- roles and permissions such as Administrator, Household Member and Read Only where appropriate;
-- household membership;
-- display names and profiles;
-- last-login and account-status visibility;
-- User Activity for login, logout, record creation, record editing, CSV import, bank connect/disconnect, budget changes, reconciliation decisions, rules, scenarios, goals and configuration changes;
-- immutable append-only Audit Logs that record timestamp, user, action, entity type, entity ID, source/interface and important metadata;
-- separate record Change History showing previous value, new value and effective dates;
-- created_by_user_id and updated_by_user_id metadata on important entities where practical;
-- per-user Insight review/dismissal state when household multi-user support is introduced.
-
-Future example:
-
-#### Recurring Expense: Internet
-
-Created: 5 Jan 2026, 10:42 by Stu. Amount: `$140/month`.
-
-Changed: 1 Oct 2026, 09:15 by Stu. Amount: `$140 → $80`. Effective: `1 Oct 2026`.
-
-Audit event: Stu edited Telstra Internet.
-
-Change history: amount changed from `$140` to `$80`.
-
-### v1.0.0 - Production Release
-
-Planned scope:
-- production hardening;
-- installation and onboarding polish;
-- migration and upgrade reliability;
-- database integrity checks and safe recovery tooling;
-- backup and restore guidance/workflows;
-- authentication and session security hardening;
-- household User Management and permission readiness;
-- User Activity, Audit Log and per-record Change History readiness;
-- richer Reports and export-ready data services;
-- privacy and data-retention controls;
-- support diagnostics that avoid exposing sensitive financial data;
-- production CDR/provider expansion and consent lifecycle integration;
-- bank-sync reliability, retry/backoff and reconciliation improvements;
-- performance validation on larger transaction histories;
-- error handling and degraded-provider behaviour;
-- stable release packaging and user documentation.
+These remain future capabilities and are not to be implied as v1.0.0-delivered unless separately implemented and validated:
+- household user creation, editing, deactivation/reactivation and password-reset workflows;
+- Administrator, Household Member and Read Only permissions;
+- household membership/profile management;
+- User Activity;
+- immutable Audit Logs;
+- per-record Change History;
+- richer Reports and export-ready services;
+- production CDR/provider expansion and consent lifecycle;
+- advanced bank-sync retry/backoff and provider-degraded behaviour;
+- broader privacy/data-retention controls;
+- per-user Insight state when multi-user support is introduced.

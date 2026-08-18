@@ -5,6 +5,7 @@ import './auth-v15.css';
 import './font-v13.css';
 import './styles.css';
 import './mobile-v16.css';
+import './hardening-v17.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
