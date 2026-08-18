@@ -100,7 +100,7 @@ def test_recovery_fails_safely_for_multiple_admins_without_exact_username(client
         assert db.scalar(select(User).where(User.username == "test_admin")) is None
 
 
-def test_recovery_fails_safely_on_username_collision(client, monkeypatch):
+def test_recovery_fails_safely_on_non_admin_username_collision(client, monkeypatch):
     admin = client.post("/api/auth/setup", json={"username": "admin_one", "display_name": "Admin One", "password": OLD_PASSWORD}).json()
     client.post("/api/auth/logout")
     with get_session_factory()() as db:
@@ -108,12 +108,14 @@ def test_recovery_fails_safely_on_username_collision(client, monkeypatch):
         db.commit()
     configure(monkeypatch, username="test_admin")
     result = initialise()
-    # Exact configured identity is deterministic, so that user becomes the intended recovered admin.
-    assert result.state == AuthLifecycleState.READY
-    assert result.user_id != admin["id"]
+    assert result.state == AuthLifecycleState.AUTH_CONFIGURATION_ERROR
     with get_session_factory()() as db:
-        recovered = db.scalar(select(User).where(User.username == "test_admin"))
-        assert recovered is not None and recovered.is_admin
+        persisted_admin = db.get(User, admin["id"])
+        collision = db.scalar(select(User).where(User.username == "test_admin"))
+        assert persisted_admin is not None and persisted_admin.is_admin
+        assert persisted_admin.username == "admin_one"
+        assert collision is not None and collision.is_admin is False
+        assert verify_password("StandardUserPassword123!", collision.password_hash)
 
 
 def test_recovery_revokes_target_sessions_but_not_unrelated_user_sessions(client, monkeypatch):
