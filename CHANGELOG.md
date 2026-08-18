@@ -2,6 +2,36 @@
 
 All notable Fynvo changes are documented here. Starting with v0.3.0, every release must include a user-readable changelog entry, Home Assistant-visible release notes and GitHub release notes.
 
+## v0.16.0 - Mobile Experience & Responsive Navigation
+
+### Added
+- Added a hamburger-controlled off-canvas mobile navigation drawer that reuses the authoritative Fynvo sidebar/navigation.
+- Added backdrop, close-button and Escape dismissal.
+- Added background scroll locking while the drawer is open and independent drawer scrolling.
+- Added iPhone safe-area and dynamic viewport-height handling.
+- Added mobile navigation focus management, ARIA state and reduced-motion support.
+- Added dependency-free frontend regression checks for responsive navigation behaviour.
+
+### Changed
+- Mobile financial page content now appears immediately below a compact application bar instead of below the full navigation menu.
+- Mobile navigation uses a single-column drawer with responsive 86-88% width and sensible maximum width.
+- Forms become single-column on narrow screens, tables retain information through horizontal scrolling, and modals use mobile-safe internal scrolling.
+- KPI/card layouts progressively stack for smaller displays including 320px widths.
+- Small desktop/tablet layouts retain content space with a narrower persistent sidebar where appropriate.
+- Updated release metadata to v0.16.0 across the Home Assistant add-on, backend and frontend.
+
+### Fixed
+- Fixed the iPhone/mobile issue where the complete Fynvo navigation remained permanently expanded above Overview, Insights and other financial pages.
+- Fixed mobile menu state remaining open after selecting a destination.
+- Fixed stale drawer overlays and body scroll locks after responsive breakpoint changes.
+
+### Regression protection
+- v0.15.0 administrator bootstrap, recovery, session, logout and ingress authentication code remains covered by the backend regression suite.
+- Existing financial pages, Insights, Budgeting, Goals, Spending Intelligence, CSV Import, Review Queue and Categories remain on the shared responsive application architecture.
+
+### Release gate
+- Real Home Assistant ingress testing on an iPhone-sized viewport remains mandatory before v0.16.0 is declared fully accepted.
+
 ## v0.13.0
 
 ### Added

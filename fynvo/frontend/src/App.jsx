@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import InsightsPage from './InsightsPage.jsx';
 import logo from './assets/fynvo-logo.svg';
 import mark from './assets/fynvo-mark.svg';
@@ -7,9 +7,11 @@ import './styles.css';
 const api = (path, options = {}) => fetch(`api${path}`, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options });
 const today = new Date().toISOString().slice(0, 10);
 const navGroups = [
-  { label: 'Core', items: ['Overview', 'Cash Flow', 'Calendar', 'Accounts', 'Transactions', 'Recurring Expenses', 'Income', 'Bills', 'Planned Spending'] },
-  { label: 'Planning / Analysis', items: ['Budgeting', 'Goals', 'Insights', 'Spending Intelligence', 'CSV Import', 'Import History', 'Review Queue'] },
-  { label: 'Settings', items: ['Categories'] },
+  { label: 'Core', items: ['Overview', 'Cash Flow', 'Calendar', 'Accounts'] },
+  { label: 'Money', items: ['Transactions', 'Income', 'Bills', 'Recurring Expenses', 'Planned Spending'] },
+  { label: 'Planning', items: ['Budgeting', 'Goals'] },
+  { label: 'Intelligence', items: ['Insights', 'Spending Intelligence'] },
+  { label: 'Import & Data', items: ['CSV Import', 'Import History', 'Review Queue', 'Categories'] },
 ];
 const horizonOptions = [
   { label: 'Next 7 days', value: 7 },
@@ -65,6 +67,10 @@ export default function App() {
   const [success, setSuccess] = useState('');
   const [edit, setEdit] = useState(null);
   const [quick, setQuick] = useState(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 980px)').matches);
+  const menuButtonRef = useRef(null);
+  const closeButtonRef = useRef(null);
   const [importState, setImportState] = useState({ filename: '', account_id: '', csv_text: '', source_name: 'Australian bank CSV', mapping: { date: 'Date', description: 'Description', debit: 'Debit', credit: 'Credit', amount: 'Amount' }, preview: null });
 
   async function loadAuth() { const res = await api('/auth/state'); setAuth(await res.json()); }
@@ -79,9 +85,37 @@ export default function App() {
   useEffect(() => { if (auth?.authenticated) loadData(); }, [auth?.authenticated, rangeDays]);
   useEffect(() => { localStorage.setItem('fynvo.view', active); }, [active]);
   useEffect(() => { localStorage.setItem('fynvo.rangeDays', String(rangeDays)); }, [rangeDays]);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 980px)');
+    const sync = (event) => {
+      setIsMobile(event.matches);
+      setMobileNavOpen(false);
+      document.body.style.overflow = '';
+    };
+    media.addEventListener?.('change', sync);
+    return () => media.removeEventListener?.('change', sync);
+  }, []);
+  useEffect(() => {
+    if (!isMobile) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = mobileNavOpen ? 'hidden' : previousOverflow;
+    if (mobileNavOpen) window.requestAnimationFrame(() => closeButtonRef.current?.focus({ preventScroll: true }));
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [mobileNavOpen, isMobile]);
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape' && mobileNavOpen) {
+        event.preventDefault();
+        setMobileNavOpen(false);
+        window.requestAnimationFrame(() => menuButtonRef.current?.focus({ preventScroll: true }));
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [mobileNavOpen]);
 
-  async function submitAuth(e) { e.preventDefault(); setError(''); const payload = auth?.setup_required ? { username: form.username, display_name: form.display_name || form.username, password: form.password } : { username: form.username, password: form.password }; const res = await api(auth?.setup_required ? '/auth/setup' : '/auth/login', { method: 'POST', body: JSON.stringify(payload) }); if (res.ok) await loadAuth(); else setError('Sign-in failed. Check your username and password.'); }
-  async function logout() { await api('/auth/logout', { method: 'POST' }); setAuth({ authenticated: false, setup_required: false, user: null }); }
+  async function submitAuth(e) { e.preventDefault(); setError(''); const payload = auth?.setup_required ? { username: form.username, display_name: form.display_name || form.username, password: form.password } : { username: form.username, password: form.password }; const res = await api(auth?.setup_required ? '/auth/setup' : '/auth/login', { method: 'POST', body: JSON.stringify(payload) }); if (res.ok) { setMobileNavOpen(false); await loadAuth(); } else setError('Sign-in failed. Check your username and password.'); }
+  async function logout() { await api('/auth/logout', { method: 'POST' }); setMobileNavOpen(false); setAuth({ authenticated: false, setup_required: false, user: null }); }
   async function saveEdit(e) { e.preventDefault(); setError(''); setSuccess(''); const res = await api(endpointFor(edit.type, edit.row.id), { method: 'PUT', body: JSON.stringify(edit.values) }); if (!res.ok) { setError(friendlyError(await res.json().catch(() => null), `Could not save ${edit.label}. Check the fields and try again.`)); return; } setEdit(null); setSuccess(`${edit.label} updated.`); await loadData(); }
   async function createRecord(type, values) { setError(''); setSuccess(''); const res = await api(createPath(type), { method: 'POST', body: JSON.stringify(values) }); if (res.ok) { setQuick(null); setSuccess(`${type === 'goals' ? 'Goal' : 'Record'} created.`); await loadData(); } else setError(friendlyError(await res.json().catch(() => null), 'Create failed. Check required fields and try again.')); }
   async function previewImport(e) { e.preventDefault(); const res = await api('/imports/preview', { method: 'POST', body: JSON.stringify(importState) }); if (res.ok) setImportState({ ...importState, preview: await res.json() }); else setError('CSV preview failed. Check the account, headers and mapping.'); }
@@ -94,23 +128,44 @@ export default function App() {
   async function refreshInsights() { const res = await api(`/insights/refresh?horizon_days=${rangeDays}`, { method: 'POST' }); if (res.ok) { setSuccess('Financial Insights refreshed.'); await loadData(); } else setError('Could not refresh Financial Insights.'); }
 
   const quickDefaults = (type) => ({ type, values: normaliseRecord(type, { account_id: data.accounts[0]?.id || '', destination_account_id: data.accounts[0]?.id || '' }) });
+  const navigate = (item) => {
+    setActive(item);
+    if (isMobile) {
+      setMobileNavOpen(false);
+      window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }));
+    }
+  };
+  const closeMobileNav = (restoreFocus = true) => {
+    setMobileNavOpen(false);
+    if (restoreFocus) window.requestAnimationFrame(() => menuButtonRef.current?.focus({ preventScroll: true }));
+  };
 
   if (!auth) return <main className="login"><div className="login-card"><img className="login-logo" src={logo} alt="Fynvo"/><p>Loading...</p></div></main>;
   if (!auth.authenticated) return <main className="login"><form className="login-card" onSubmit={submitAuth}><img className="login-logo" src={logo} alt="Fynvo"/><p>Know what's coming.</p>{auth.setup_required && <p className="notice">Create the first administrator account.</p>}<Field label="Username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })}/>{auth.setup_required && <Field label="Display name" value={form.display_name} onChange={(e) => setForm({ ...form, display_name: e.target.value })}/>}<Field label="Password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}/>{error && <p className="error">{error}</p>}<button className="primary">{auth.setup_required ? 'Create account' : 'Sign in'}</button></form></main>;
 
-  return <div className="shell"><aside className="sidebar"><div className="brand"><img src={mark} alt=""/><div><strong>Fynvo</strong><small>Know what's coming.</small></div></div><nav>{navGroups.map((group) => <div className="nav-group" key={group.label}><small>{group.label}</small>{group.items.map((item) => <button key={item} className={active === item ? 'active' : ''} onClick={() => setActive(item)}>{item}</button>)}</div>)}</nav><div className="user-card"><span>{(auth.user?.display_name || 'SP').slice(0, 2).toUpperCase()}</span><div><strong>{auth.user?.display_name}</strong><small>Household</small></div></div></aside><main className="content"><header className="header"><div><p className="eyebrow">Fynvo v0.14.0</p><h1>{active === 'Overview' ? `Good morning, ${auth.user?.display_name || 'there'}! 👋` : active}</h1><p>{active === 'Overview' ? "Here's your financial overview and what's ahead." : active === 'Insights' ? 'Understand what is changing, why it matters and which data supports it.' : 'Manage household financial records and planning.'}</p></div><div className="header-actions"><label className="select-shell">Date range<select value={rangeDays} onChange={(e) => setRangeDays(Number(e.target.value))}>{horizonOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><button className="primary ghost" onClick={() => setQuick(quickDefaults('transactions'))}>+ Quick Add</button><button onClick={logout}>Logout</button></div></header>{error && <p className="error banner">{error}</p>}{success && <p className="success banner">{success}</p>}
-    {active === 'Overview' && <Overview data={data} setActive={setActive} rangeDays={rangeDays} setQuick={setQuick} quickDefaults={quickDefaults}/>} 
-    {active === 'Cash Flow' && <ForecastPage forecast={data.command?.forecast?.expected || data.forecast}/>} 
-    {active === 'Calendar' && <CalendarPage command={data.command}/>} 
-    {active === 'CSV Import' && <CsvImport state={importState} setState={setImportState} accounts={data.accounts} previewImport={previewImport} commitImport={commitImport}/>} 
-    {active === 'Import History' && <ImportHistory rows={data.imports}/>} 
-    {active === 'Review Queue' && <ReviewQueue rows={data.review} acceptMatch={acceptMatch}/>} 
-    {active === 'Spending Intelligence' && <SpendingIntelligence suggestions={data.suggestions} dismissSuggestion={dismissSuggestion}/>} 
-    {active === 'Insights' && <InsightsPage insights={data.insights} health={data.financialHealth || data.command?.financial_health} onDismiss={dismissInsight} onReviewed={reviewInsight} onNavigate={setActive} onRefresh={refreshInsights}/>} 
-    {active === 'Budgeting' && <Budgeting budgets={data.budgets} analysis={data.budgetAnalysis} categories={data.categories} onEdit={(row) => setEdit({ type: 'budgets', label: 'Budget', row, values: normaliseRecord('budgets', row) })}/>} 
-    {active === 'Goals' && <GoalsPage goals={data.goals} accounts={data.accounts} onEdit={(row) => setEdit({ type: 'goals', label: 'Goal', row, values: normaliseRecord('goals', row) })} onAdd={() => setQuick(quickDefaults('goals'))} onComplete={completeGoal}/>} 
-    {['Accounts','Transactions','Income','Recurring Expenses','Bills','Planned Spending','Categories'].includes(active) && <RecordTable active={active} data={data} onEdit={setEdit}/>} 
-  </main>{edit && <EditModal edit={edit} setEdit={setEdit} onSubmit={saveEdit} data={data}/>} {quick && <EditModal edit={{ ...quick, row: { id: null }, label: `New ${quick.type === 'goals' ? 'Goal' : quick.type.slice(0, -1)}` }} setEdit={setQuick} onSubmit={(e) => { e.preventDefault(); createRecord(quick.type, quick.values); }} data={data}/>}</div>;
+  return <div className={`shell ${mobileNavOpen ? 'mobile-nav-open' : ''}`}>
+    <aside className="sidebar" id="fynvo-navigation" aria-label="Fynvo navigation" aria-hidden={isMobile && !mobileNavOpen ? 'true' : undefined} inert={isMobile && !mobileNavOpen ? true : undefined}>
+      <button ref={closeButtonRef} className="mobile-nav-close" type="button" aria-label="Close Fynvo navigation" onClick={() => closeMobileNav()}>×</button>
+      <div className="brand"><img src={mark} alt=""/><div><strong>Fynvo</strong><small>Know what's coming.</small></div></div>
+      <nav aria-label="Primary navigation">{navGroups.map((group) => <div className="nav-group" key={group.label}><small>{group.label}</small>{group.items.map((item) => <button key={item} className={active === item ? 'active' : ''} aria-current={active === item ? 'page' : undefined} onClick={() => navigate(item)}>{item}</button>)}</div>)}</nav>
+      <div className="user-card"><span>{(auth.user?.display_name || 'SP').slice(0, 2).toUpperCase()}</span><div><strong>{auth.user?.display_name}</strong><small>Household</small></div></div>
+    </aside>
+    <button className="mobile-nav-backdrop" type="button" aria-label="Close Fynvo navigation" tabIndex={mobileNavOpen ? 0 : -1} onClick={() => closeMobileNav()}></button>
+    <main className="content">
+      <div className="mobile-app-bar" aria-label="Fynvo application controls"><button ref={menuButtonRef} className="mobile-menu-button" type="button" aria-label={mobileNavOpen ? 'Close Fynvo navigation' : 'Open Fynvo navigation'} aria-expanded={mobileNavOpen} aria-controls="fynvo-navigation" onClick={() => setMobileNavOpen((open) => !open)}><span aria-hidden="true">☰</span><span className="sr-only">Menu</span></button><strong className="mobile-app-identity">Fynvo</strong></div>
+      <header className="header"><div><p className="eyebrow">Fynvo v0.16.0</p><h1>{active === 'Overview' ? `Good morning, ${auth.user?.display_name || 'there'}! 👋` : active}</h1><p>{active === 'Overview' ? "Here's your financial overview and what's ahead." : active === 'Insights' ? 'Understand what is changing, why it matters and which data supports it.' : 'Manage household financial records and planning.'}</p></div><div className="header-actions"><label className="select-shell">Date range<select value={rangeDays} onChange={(e) => setRangeDays(Number(e.target.value))}>{horizonOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><button className="primary ghost" onClick={() => setQuick(quickDefaults('transactions'))}>+ Quick Add</button><button onClick={logout}>Logout</button></div></header>{error && <p className="error banner">{error}</p>}{success && <p className="success banner">{success}</p>}
+      {active === 'Overview' && <Overview data={data} setActive={navigate} rangeDays={rangeDays} setQuick={setQuick} quickDefaults={quickDefaults}/>} 
+      {active === 'Cash Flow' && <ForecastPage forecast={data.command?.forecast?.expected || data.forecast}/>} 
+      {active === 'Calendar' && <CalendarPage command={data.command}/>} 
+      {active === 'CSV Import' && <CsvImport state={importState} setState={setImportState} accounts={data.accounts} previewImport={previewImport} commitImport={commitImport}/>} 
+      {active === 'Import History' && <ImportHistory rows={data.imports}/>} 
+      {active === 'Review Queue' && <ReviewQueue rows={data.review} acceptMatch={acceptMatch}/>} 
+      {active === 'Spending Intelligence' && <SpendingIntelligence suggestions={data.suggestions} dismissSuggestion={dismissSuggestion}/>} 
+      {active === 'Insights' && <InsightsPage insights={data.insights} health={data.financialHealth || data.command?.financial_health} onDismiss={dismissInsight} onReviewed={reviewInsight} onNavigate={navigate} onRefresh={refreshInsights}/>} 
+      {active === 'Budgeting' && <Budgeting budgets={data.budgets} analysis={data.budgetAnalysis} categories={data.categories} onEdit={(row) => setEdit({ type: 'budgets', label: 'Budget', row, values: normaliseRecord('budgets', row) })}/>} 
+      {active === 'Goals' && <GoalsPage goals={data.goals} accounts={data.accounts} onEdit={(row) => setEdit({ type: 'goals', label: 'Goal', row, values: normaliseRecord('goals', row) })} onAdd={() => setQuick(quickDefaults('goals'))} onComplete={completeGoal}/>} 
+      {['Accounts','Transactions','Income','Recurring Expenses','Bills','Planned Spending','Categories'].includes(active) && <RecordTable active={active} data={data} onEdit={setEdit}/>} 
+    </main>{edit && <EditModal edit={edit} setEdit={setEdit} onSubmit={saveEdit} data={data}/>} {quick && <EditModal edit={{ ...quick, row: { id: null }, label: `New ${quick.type === 'goals' ? 'Goal' : quick.type.slice(0, -1)}` }} setEdit={setQuick} onSubmit={(e) => { e.preventDefault(); createRecord(quick.type, quick.values); }} data={data}/>}</div>;
 }
 
 function Overview({ data, setActive, rangeDays, setQuick, quickDefaults }) {

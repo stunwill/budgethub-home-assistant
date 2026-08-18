@@ -1,5 +1,36 @@
 # Fynvo Add-on Changelog
 
+## v0.16.0 - Mobile Experience & Responsive Navigation
+
+### Added
+- Hamburger-controlled mobile navigation using the existing Fynvo navigation as an off-canvas drawer.
+- Dimmed backdrop dismissal, explicit close control and Escape-key dismissal.
+- Background scroll locking while the mobile drawer is open, with independent drawer scrolling.
+- Safe-area-aware iPhone drawer layout using dynamic viewport height with fallback.
+- Mobile focus management, `aria-expanded`, `aria-controls`, navigation labelling and reduced-motion support.
+- Responsive navigation regression tests covering required dismissal paths, breakpoints, safe areas and scroll locking.
+
+### Changed
+- Phone and narrow tablet layouts now show financial page content immediately instead of placing the complete navigation above it.
+- Navigation becomes a single-column mobile drawer below the responsive breakpoint while desktop keeps the established persistent sidebar.
+- Mobile forms use available width more effectively.
+- Data-heavy tables retain their desktop information and become horizontally scrollable on narrow displays.
+- Mobile modals respect dynamic viewport height, safe areas and internal scrolling.
+- KPI cards and action layouts stack progressively for small phones, including 320px-wide displays.
+- Version updated to 0.16.0 across Home Assistant add-on, backend and frontend metadata.
+
+### Fixed
+- Fixed the release-blocking mobile issue where the full navigation menu remained permanently expanded and occupied most of the visible iPhone screen.
+- Fixed stale mobile drawer and scroll-lock state when moving between responsive breakpoints.
+- Fixed mobile navigation remaining open after selecting a destination.
+
+### Compatibility
+- v0.15.0 authentication/bootstrap/recovery/session functionality is retained and continues to be covered by backend regression tests.
+- Existing Fynvo financial pages, Insights, scenarios, budgeting, editing, CSV import and reconciliation code are not replaced by a separate mobile implementation.
+
+### Manual acceptance
+- A real Home Assistant ingress/iPhone acceptance run is still required before the v0.16.0 mobile release gate can be declared fully passed.
+
 ## v0.14.0
 
 ### Added
