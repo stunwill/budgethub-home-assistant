@@ -13,16 +13,30 @@ from .security import utcnow
 class AccountType(StrEnum):
     TRANSACTION = "transaction"
     SAVINGS = "savings"
+    OFFSET = "offset"
     CREDIT_CARD = "credit_card"
     CASH = "cash"
     MORTGAGE = "mortgage"
     PERSONAL_LOAN = "personal_loan"
-    VEHICLE_LOAN = "vehicle_loan"
+    CAR_LOAN = "car_loan"
+    VEHICLE_LOAN = "vehicle_loan"  # Legacy identifier retained for existing data.
+    LINE_OF_CREDIT = "line_of_credit"
+    INVESTMENT = "investment"
+    SUPERANNUATION = "superannuation"
     OTHER_ASSET = "other_asset"
     OTHER_LIABILITY = "other_liability"
 
 
-LIABILITY_TYPES = {"credit_card", "mortgage", "personal_loan", "vehicle_loan", "other_liability"}
+LIABILITY_TYPES = {
+    "credit_card",
+    "mortgage",
+    "personal_loan",
+    "car_loan",
+    "vehicle_loan",
+    "line_of_credit",
+    "other_liability",
+}
+LIQUID_ASSET_TYPES = {"transaction", "savings", "offset", "cash"}
 ACCOUNT_TYPES = {item.value for item in AccountType}
 
 
@@ -35,6 +49,18 @@ def signed_amount_cents(account: Account, transaction_type: str, amount_cents: i
     if transaction_type == "expense":
         return abs(amount_cents) if liability else -abs(amount_cents)
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid transaction type")
+
+
+def transfer_delta_cents(account: Account, amount_cents: int, incoming: bool) -> int:
+    """Return the balance delta for an internal transfer.
+
+    Asset balances represent money owned, while liability balances represent money owed.
+    Therefore a payment into a liability reduces its balance rather than increasing it.
+    """
+    amount = abs(amount_cents)
+    if account.account_type in LIABILITY_TYPES:
+        return -amount if incoming else amount
+    return amount if incoming else -amount
 
 
 def get_account(db: DbSession, user: User, account_id: int) -> Account:
@@ -54,6 +80,7 @@ def account_response(db: DbSession, account: Account) -> dict:
         "id": account.id,
         "name": account.name,
         "account_type": account.account_type,
+        "account_class": "liability" if account.account_type in LIABILITY_TYPES else "asset",
         "institution": account.institution,
         "opening_balance": cents_to_decimal(account.opening_balance_cents),
         "current_balance": cents_to_decimal(account_balance_cents(db, account)),
@@ -76,14 +103,17 @@ def list_accounts(db: DbSession, user: User, include_archived: bool = False) -> 
 
 def create_account(db: DbSession, user: User, payload) -> dict:
     if payload.account_type not in ACCOUNT_TYPES:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid account type")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported account type")
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Account name is required")
     account = Account(
         user_id=user.id,
-        name=payload.name.strip(),
+        name=name,
         account_type=payload.account_type,
-        institution=payload.institution,
-        opening_balance_cents=parse_money(payload.opening_balance),
-        description=payload.description,
+        institution=payload.institution.strip() if payload.institution else None,
+        opening_balance_cents=abs(parse_money(payload.opening_balance)),
+        description=payload.description.strip() if payload.description else None,
         account_suffix=payload.account_suffix,
         icon=payload.icon,
         color=payload.color,
@@ -97,13 +127,16 @@ def create_account(db: DbSession, user: User, payload) -> dict:
 def update_account(db: DbSession, user: User, account_id: int, payload) -> dict:
     account = get_account(db, user, account_id)
     if payload.account_type and payload.account_type not in ACCOUNT_TYPES:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid account type")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported account type")
     for field in ("name", "account_type", "institution", "description", "account_suffix", "icon", "color"):
         value = getattr(payload, field)
         if value is not None:
-            setattr(account, field, value.strip() if isinstance(value, str) else value)
+            value = value.strip() if isinstance(value, str) else value
+            if field == "name" and not value:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Account name is required")
+            setattr(account, field, value)
     if payload.opening_balance is not None:
-        account.opening_balance_cents = parse_money(payload.opening_balance)
+        account.opening_balance_cents = abs(parse_money(payload.opening_balance))
     account.updated_at = utcnow()
     db.commit()
     return account_response(db, account)
@@ -155,6 +188,8 @@ def list_transactions(db: DbSession, user: User, account_id: int | None = None, 
 
 def create_transaction(db: DbSession, user: User, payload) -> dict:
     account = get_account(db, user, payload.account_id)
+    if not account.is_active:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Choose an active account")
     if payload.transaction_type not in {"income", "expense"}:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Use transfer endpoint for transfers")
     tx = Transaction(user_id=user.id, account_id=account.id, transaction_date=payload.date, amount_cents=signed_amount_cents(account, payload.transaction_type, parse_money(payload.amount)), transaction_type=payload.transaction_type, description=payload.description.strip(), merchant=payload.merchant, category=payload.category, notes=payload.notes, source=payload.source, status=payload.status, raw_description=payload.raw_description)
@@ -173,6 +208,8 @@ def update_transaction(db: DbSession, user: User, transaction_id: int, payload) 
     account = tx.account
     if payload.account_id is not None:
         account = get_account(db, user, payload.account_id)
+        if not account.is_active:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Choose an active account")
         tx.account_id = account.id
     if payload.transaction_type is not None:
         tx.transaction_type = payload.transaction_type
@@ -211,6 +248,8 @@ def running_transactions(db: DbSession, user: User, account_id: int) -> list[dic
 def create_transfer(db: DbSession, user: User, payload) -> dict:
     from_account = get_account(db, user, payload.from_account_id)
     to_account = get_account(db, user, payload.to_account_id)
+    if not from_account.is_active or not to_account.is_active:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Transfers require active accounts")
     if from_account.id == to_account.id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Transfer destination must differ from source")
     amount = abs(parse_money(payload.amount))
@@ -218,8 +257,8 @@ def create_transfer(db: DbSession, user: User, payload) -> dict:
     db.add(transfer)
     db.flush()
     db.add_all([
-        Transaction(user_id=user.id, account_id=from_account.id, transfer_id=transfer.id, transaction_date=payload.date, amount_cents=-amount, transaction_type="transfer", description=payload.description.strip(), notes=payload.notes, source="manual"),
-        Transaction(user_id=user.id, account_id=to_account.id, transfer_id=transfer.id, transaction_date=payload.date, amount_cents=amount, transaction_type="transfer", description=payload.description.strip(), notes=payload.notes, source="manual"),
+        Transaction(user_id=user.id, account_id=from_account.id, transfer_id=transfer.id, transaction_date=payload.date, amount_cents=transfer_delta_cents(from_account, amount, incoming=False), transaction_type="transfer", description=payload.description.strip(), notes=payload.notes, source="manual"),
+        Transaction(user_id=user.id, account_id=to_account.id, transfer_id=transfer.id, transaction_date=payload.date, amount_cents=transfer_delta_cents(to_account, amount, incoming=True), transaction_type="transfer", description=payload.description.strip(), notes=payload.notes, source="manual"),
     ])
     db.commit()
     return {"id": transfer.id, "amount": cents_to_decimal(amount), "from_account_id": from_account.id, "to_account_id": to_account.id, "date": payload.date.isoformat(), "description": payload.description}
@@ -231,6 +270,8 @@ def update_transfer(db: DbSession, user: User, transfer_id: int, payload) -> dic
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transfer not found")
     from_account = get_account(db, user, payload.from_account_id or transfer.from_account_id)
     to_account = get_account(db, user, payload.to_account_id or transfer.to_account_id)
+    if not from_account.is_active or not to_account.is_active:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Transfers require active accounts")
     if from_account.id == to_account.id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Transfer destination must differ from source")
     amount = abs(parse_money(payload.amount)) if payload.amount is not None else transfer.amount_cents
@@ -246,8 +287,8 @@ def update_transfer(db: DbSession, user: User, transfer_id: int, payload) -> dic
     db.query(Transaction).filter(Transaction.transfer_id == transfer.id).delete()
     db.flush()
     db.add_all([
-        Transaction(user_id=user.id, account_id=from_account.id, transfer_id=transfer.id, transaction_date=transfer.transaction_date, amount_cents=-amount, transaction_type="transfer", description=transfer.description, notes=transfer.notes, source="manual"),
-        Transaction(user_id=user.id, account_id=to_account.id, transfer_id=transfer.id, transaction_date=transfer.transaction_date, amount_cents=amount, transaction_type="transfer", description=transfer.description, notes=transfer.notes, source="manual"),
+        Transaction(user_id=user.id, account_id=from_account.id, transfer_id=transfer.id, transaction_date=transfer.transaction_date, amount_cents=transfer_delta_cents(from_account, amount, incoming=False), transaction_type="transfer", description=transfer.description, notes=transfer.notes, source="manual"),
+        Transaction(user_id=user.id, account_id=to_account.id, transfer_id=transfer.id, transaction_date=transfer.transaction_date, amount_cents=transfer_delta_cents(to_account, amount, incoming=True), transaction_type="transfer", description=transfer.description, notes=transfer.notes, source="manual"),
     ])
     transfer.updated_at = utcnow()
     db.commit()
@@ -273,7 +314,7 @@ def dashboard_position(db: DbSession, user: User) -> dict:
             liabilities += max(balance, 0)
         else:
             assets += balance
-            if account.account_type in {"transaction", "savings", "cash"}:
+            if account.account_type in LIQUID_ASSET_TYPES:
                 available += balance
     recent = db.scalars(select(Transaction).where(Transaction.user_id == user.id).order_by(Transaction.transaction_date.desc(), Transaction.id.desc()).limit(5)).all()
     return {"assets": cents_to_decimal(assets), "liabilities": cents_to_decimal(liabilities), "net_position": cents_to_decimal(assets - liabilities), "available_cash": cents_to_decimal(available), "account_count": len(accounts), "recent_transactions": [tx_response(tx) for tx in recent]}
