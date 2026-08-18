@@ -1,9 +1,8 @@
-from sqlalchemy import select
-
 from app.config import get_settings
 from app.database import get_session_factory
 from app.models import AppConfig, User
 from app.security import verify_password
+from sqlalchemy import select
 
 
 def _configure_admin(monkeypatch, username="stu", password="ConfiguredPassword123!", display_name="Stu", recovery=False):
