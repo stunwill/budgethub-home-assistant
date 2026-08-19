@@ -29,10 +29,10 @@ def setup_user(client):
         raise
 
 
-def test_budget_migration_schema_version_eight(client):
+def test_budget_migration_schema_version_nine(client):
     run_migrations()
     with get_engine().begin() as connection:
-        assert connection.execute(text("SELECT max(version) FROM schema_version")).scalar() == 8
+        assert connection.execute(text("SELECT max(version) FROM schema_version")).scalar() == 9
         tables = connection.execute(text("SELECT name FROM sqlite_master WHERE type='table'")).scalars().all()
     assert "budgets" in tables
     assert "categories" in tables
@@ -53,7 +53,7 @@ def test_category_hierarchy_reparent_and_cycle_prevention(client):
     try:
         utilities = create_category(db, user, {"name": "Utilities", "budget_relationship": "shared_parent_pool"})
         electricity = create_category(db, user, {"name": "Electricity", "parent_id": utilities["id"]})
-        assert update_category(db, user, electricity["id"], {"name": "Power", "parent_id": utilities["id"]})["path"] == "Utilities > Power"
+        assert update_category(db, user, electricity["id"], {"name": "Power", "parent_id": utilities["id"]})["path"] == "Utilities → Power"
         with pytest.raises(HTTPException):
             update_category(db, user, utilities["id"], {"parent_id": electricity["id"]})
     finally:
