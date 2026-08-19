@@ -4,7 +4,7 @@ v1.0.0 keeps the proven v0.x services in place and layers stable-production
 reference-data, card, recurring-payment and migration behaviour on top of them.
 """
 
-from . import auth, budget, database, finance, forecast, schemas, v1
+from . import budget, database, finance, forecast, schemas, v1
 
 # Preserve the v0.17 migration chain, then run the forward-only v1 migration.
 _legacy_run_migrations = database.run_migrations
@@ -21,7 +21,6 @@ database.run_migrations = _run_migrations_v1
 # modules avoids a broad route/API rewrite while making v1 behaviour authoritative.
 schemas.RecurringExpenseCreate = v1.RecurringExpenseCreateV1
 finance.create_recurring = v1.create_recurring_v1
-finance.list_recurring = v1.list_recurring_v1
 finance.recurring_response = v1.recurring_response
 finance.schedule_events = v1.schedule_events_v1
 
@@ -35,24 +34,40 @@ def _ensure_seed_data_v1(db, user) -> None:
 
 finance.ensure_seed_data = _ensure_seed_data_v1
 
-# Bootstrap the stable reference data and legacy household seed immediately after
-# first-admin creation. This keeps existing post-setup APIs populated without
-# requiring users to visit a Settings/reference-data endpoint first.
-_legacy_create_initial_admin = auth.create_initial_admin
+# Seed reference data only when Category-backed APIs actually need it. This keeps
+# low-level legacy tests and direct service consumers free to create their own
+# isolated category trees while the installed application still gets the v1
+# defaults on first use.
+_legacy_list_categories_v1 = v1.list_categories_v1
 
 
-def _create_initial_admin_v1(db, username, password, display_name):
-    user = _legacy_create_initial_admin(db, username, password, display_name)
-    v1.ensure_reference_data(db, user)
-    _legacy_ensure_seed_data(db, user)
-    return user
+def _list_categories_v1_seeded(db, user):
+    rows = _legacy_list_categories_v1(db, user)
+    if not rows:
+        v1.ensure_reference_data(db, user)
+        rows = _legacy_list_categories_v1(db, user)
+    return rows
 
 
-auth.create_initial_admin = _create_initial_admin_v1
-
-budget.list_categories = v1.list_categories_v1
+v1.list_categories_v1 = _list_categories_v1_seeded
+budget.list_categories = _list_categories_v1_seeded
 budget.create_category = v1.create_category_v1
 budget.update_category = v1.update_category_v1
+
+# Preserve the v0.x household recurring/bill seed as part of the existing API
+# contract. The v1 recurring list remains authoritative after the legacy seed is
+# ensured, so existing installs and regression fixtures continue to see their
+# established records.
+_legacy_list_recurring_v1 = v1.list_recurring_v1
+
+
+def _list_recurring_v1_seeded(db, user, filter_value="all"):
+    _ensure_seed_data_v1(db, user)
+    return _legacy_list_recurring_v1(db, user, filter_value)
+
+
+v1.list_recurring_v1 = _list_recurring_v1_seeded
+finance.list_recurring = _list_recurring_v1_seeded
 forecast._recurring_events = v1.forecast_recurring_events_v1
 
 # Import route modules only after the compatibility patches above. v09 binds
