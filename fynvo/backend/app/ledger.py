@@ -2,7 +2,7 @@ from datetime import date
 from enum import StrEnum
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session as DbSession
 
 from .models import Account, Transaction, Transfer, User
@@ -38,6 +38,36 @@ LIABILITY_TYPES = {
 }
 LIQUID_ASSET_TYPES = {"transaction", "savings", "offset", "cash"}
 ACCOUNT_TYPES = {item.value for item in AccountType}
+
+
+def _record_edit(
+    db: DbSession,
+    user: User,
+    record_type: str,
+    record_id: int,
+    original: dict,
+    updated: dict,
+) -> None:
+    """Persist an explainable UI edit alongside the financial record change."""
+    db.execute(
+        text(
+            """
+            INSERT INTO edit_history (
+                user_id, record_type, record_id, original_json, updated_json, source, created_at
+            ) VALUES (
+                :user_id, :record_type, :record_id, :original, :updated, 'ui', :now
+            )
+            """
+        ),
+        {
+            "user_id": user.id,
+            "record_type": record_type,
+            "record_id": record_id,
+            "original": str(original),
+            "updated": str(updated),
+            "now": utcnow(),
+        },
+    )
 
 
 def signed_amount_cents(account: Account, transaction_type: str, amount_cents: int) -> int:
@@ -126,6 +156,7 @@ def create_account(db: DbSession, user: User, payload) -> dict:
 
 def update_account(db: DbSession, user: User, account_id: int, payload) -> dict:
     account = get_account(db, user, account_id)
+    original = account_response(db, account)
     if payload.account_type and payload.account_type not in ACCOUNT_TYPES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported account type")
     for field in ("name", "account_type", "institution", "description", "account_suffix", "icon", "color"):
@@ -138,6 +169,8 @@ def update_account(db: DbSession, user: User, account_id: int, payload) -> dict:
     if payload.opening_balance is not None:
         account.opening_balance_cents = abs(parse_money(payload.opening_balance))
     account.updated_at = utcnow()
+    updated = account_response(db, account)
+    _record_edit(db, user, "accounts", account.id, original, updated)
     db.commit()
     return account_response(db, account)
 
@@ -205,6 +238,7 @@ def update_transaction(db: DbSession, user: User, transaction_id: int, payload) 
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
     if tx.transfer_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Edit transfers through the transfer endpoint")
+    original = tx_response(tx)
     account = tx.account
     if payload.account_id is not None:
         account = get_account(db, user, payload.account_id)
@@ -220,6 +254,8 @@ def update_transaction(db: DbSession, user: User, transaction_id: int, payload) 
         if value is not None:
             setattr(tx, attr, value)
     tx.updated_at = utcnow()
+    updated = tx_response(tx)
+    _record_edit(db, user, "transactions", tx.id, original, updated)
     db.commit()
     return tx_response(tx)
 
