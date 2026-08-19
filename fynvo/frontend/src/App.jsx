@@ -16,6 +16,16 @@ const navGroups = [
 const accountTypeOptions = [
   ['transaction', 'Transaction Account'], ['savings', 'Savings Account'], ['offset', 'Offset Account'], ['credit_card', 'Credit Card'], ['cash', 'Cash'], ['mortgage', 'Mortgage'], ['personal_loan', 'Personal Loan'], ['car_loan', 'Car Loan'], ['line_of_credit', 'Line of Credit'], ['investment', 'Investment Account'], ['superannuation', 'Superannuation'], ['other_asset', 'Other Asset'], ['other_liability', 'Other Liability'],
 ];
+const recordLabels = { accounts: 'Account', transactions: 'Transaction', income: 'Income', recurring: 'Recurring Expense', bills: 'Bill', planned: 'Planned Spending', categories: 'Category', budgets: 'Budget', goals: 'Goal' };
+const quickAddOptions = [
+  ['transactions', 'Transaction', 'Record a purchase, payment or deposit.'],
+  ['income', 'Income', 'Add a recurring or expected income source.'],
+  ['recurring', 'Recurring Expense', 'Add a repeating household commitment.'],
+  ['bills', 'Bill', 'Add a bill or one-off obligation.'],
+  ['planned', 'Planned Spending', 'Add a future planned purchase or expense.'],
+  ['accounts', 'Account', 'Add another financial account.'],
+  ['goals', 'Goal', 'Add a savings, purchase or debt goal.'],
+];
 const accountTypeLabel = (value) => accountTypeOptions.find(([id]) => id === value)?.[1] || (value === 'vehicle_loan' ? 'Car Loan' : value?.replaceAll('_', ' ') || 'Account');
 const horizonOptions = [
   { label: 'Next 7 days', value: 7 },
@@ -28,6 +38,12 @@ const money = (value) => value === null || value === undefined || value === '' ?
 const dateLabel = (value) => value ? new Intl.DateTimeFormat('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(`${String(value).slice(0, 10)}T00:00:00`)) : 'No date';
 const amountClass = (value) => Number(value || 0) >= 0 ? 'positive' : 'negative';
 const parseAmount = (value) => Number(value || 0);
+const greetingForNow = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+};
 const Field = ({ label, children, error, ...props }) => <label className={`field ${error ? 'field-error' : ''}`}><span>{label}</span>{children || <input {...props}/>} {error && <small className="field-error-message">{error}</small>}</label>;
 const Badge = ({ children, tone = '' }) => <span className={`badge ${tone}`}>{children}</span>;
 const Empty = ({ title, children, action }) => <div className="empty"><strong>{title}</strong><p>{children}</p>{action}</div>;
@@ -70,6 +86,19 @@ function createPath(type) {
   return ({ accounts: '/accounts', transactions: '/transactions', income: '/income', recurring: '/recurring-expenses', bills: '/bills', planned: '/planned-spending', categories: '/categories', budgets: '/budgets', goals: '/goals' })[type];
 }
 
+function forecastSource(event, data) {
+  const mapping = {
+    income: ['income', data.income],
+    recurring_expense: ['recurring', data.recurring],
+    bill: ['bills', data.bills],
+    planned_spending: ['planned', data.planned],
+  };
+  const matched = mapping[event?.source_type];
+  if (!matched) return { type: null, record: null };
+  const [type, rows] = matched;
+  return { type, record: (rows || []).find((row) => Number(row.id) === Number(event.source_id)) || null };
+}
+
 export default function App() {
   const [auth, setAuth] = useState(null);
   const [active, setActive] = useState(localStorage.getItem('fynvo.view') || 'Overview');
@@ -80,6 +109,9 @@ export default function App() {
   const [success, setSuccess] = useState('');
   const [edit, setEdit] = useState(null);
   const [quick, setQuick] = useState(null);
+  const [quickMenuOpen, setQuickMenuOpen] = useState(false);
+  const [detail, setDetail] = useState(null);
+  const [greeting, setGreeting] = useState(() => greetingForNow());
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 980px)').matches);
   const menuButtonRef = useRef(null);
@@ -99,6 +131,10 @@ export default function App() {
   useEffect(() => { localStorage.setItem('fynvo.view', active); }, [active]);
   useEffect(() => { localStorage.setItem('fynvo.rangeDays', String(rangeDays)); }, [rangeDays]);
   useEffect(() => {
+    const timer = window.setInterval(() => setGreeting(greetingForNow()), 60000);
+    return () => window.clearInterval(timer);
+  }, []);
+  useEffect(() => {
     const media = window.matchMedia('(max-width: 980px)');
     const sync = (event) => {
       setIsMobile(event.matches);
@@ -117,15 +153,19 @@ export default function App() {
   }, [mobileNavOpen, isMobile]);
   useEffect(() => {
     const onKeyDown = (event) => {
-      if (event.key === 'Escape' && mobileNavOpen) {
-        event.preventDefault();
-        setMobileNavOpen(false);
-        window.requestAnimationFrame(() => menuButtonRef.current?.focus({ preventScroll: true }));
+      if (event.key === 'Escape') {
+        if (detail) setDetail(null);
+        else if (quickMenuOpen) setQuickMenuOpen(false);
+        else if (mobileNavOpen) {
+          event.preventDefault();
+          setMobileNavOpen(false);
+          window.requestAnimationFrame(() => menuButtonRef.current?.focus({ preventScroll: true }));
+        }
       }
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [mobileNavOpen]);
+  }, [mobileNavOpen, quickMenuOpen, detail]);
 
   async function submitAuth(e) { e.preventDefault(); setError(''); const payload = auth?.setup_required ? { username: form.username, display_name: form.display_name || form.username, password: form.password } : { username: form.username, password: form.password }; const res = await api(auth?.setup_required ? '/auth/setup' : '/auth/login', { method: 'POST', body: JSON.stringify(payload) }); if (res.ok) { setMobileNavOpen(false); await loadAuth(); } else setError('Sign-in failed. Check your username and password.'); }
   async function logout() { await api('/auth/logout', { method: 'POST' }); setMobileNavOpen(false); setAuth({ authenticated: false, setup_required: false, user: null }); }
@@ -139,7 +179,7 @@ export default function App() {
     setSuccess(`${creating ? edit.label.replace(/^New /, '') + ' created.' : edit.label + ' updated.'}`);
     await loadData();
   }
-  async function createRecord(type, values) { setError(''); setSuccess(''); const res = await api(createPath(type), { method: 'POST', body: JSON.stringify(values) }); if (res.ok) { setQuick(null); setSuccess(`${type === 'goals' ? 'Goal' : 'Record'} created.`); await loadData(); } else setError(friendlyError(await res.json().catch(() => null), 'Could not create this record. Check the fields and try again.')); }
+  async function createRecord(type, values) { setError(''); setSuccess(''); const res = await api(createPath(type), { method: 'POST', body: JSON.stringify(values) }); if (res.ok) { setQuick(null); setSuccess(`${recordLabels[type] || 'Record'} created.`); await loadData(); } else setError(friendlyError(await res.json().catch(() => null), 'Could not create this record. Check the fields and try again.')); }
   async function previewImport(e) { e.preventDefault(); const res = await api('/imports/preview', { method: 'POST', body: JSON.stringify(importState) }); if (res.ok) setImportState({ ...importState, preview: await res.json() }); else setError('CSV preview failed. Check the account, headers and mapping.'); }
   async function commitImport() { const res = await api('/imports/commit', { method: 'POST', body: JSON.stringify(importState) }); if (res.ok) { setImportState({ ...importState, preview: await res.json() }); await loadData(); } else setError('CSV import failed. Review invalid rows and duplicates.'); }
   async function acceptMatch(id) { const res = await api(`/reconciliation/${id}/accept`, { method: 'POST' }); if (res.ok) await loadData(); else setError('Could not accept match.'); }
@@ -150,6 +190,14 @@ export default function App() {
   async function refreshInsights() { const res = await api(`/insights/refresh?horizon_days=${rangeDays}`, { method: 'POST' }); if (res.ok) { setSuccess('Financial Insights refreshed.'); await loadData(); } else setError('Could not refresh Financial Insights.'); }
 
   const quickDefaults = (type) => ({ type, values: normaliseRecord(type, { account_id: data.accounts[0]?.id || '', destination_account_id: data.accounts[0]?.id || '' }) });
+  const openQuickAdd = (type) => { setQuickMenuOpen(false); setQuick(quickDefaults(type)); };
+  const openForecastDetail = (event) => { const source = forecastSource(event, data); setDetail({ event, ...source }); };
+  const editForecastSource = () => {
+    if (!detail?.type || !detail?.record) return;
+    const { type, record } = detail;
+    setDetail(null);
+    setEdit({ type, label: recordLabels[type], row: record, values: normaliseRecord(type, record) });
+  };
   const navigate = (item) => {
     setActive(item);
     if (isMobile) {
@@ -170,14 +218,15 @@ export default function App() {
       <button ref={closeButtonRef} className="mobile-nav-close" type="button" aria-label="Close Fynvo navigation" onClick={() => closeMobileNav()}>×</button>
       <div className="brand"><img src={mark} alt=""/><div><strong>Fynvo</strong><small>Know what's coming.</small></div></div>
       <nav aria-label="Primary navigation">{navGroups.map((group) => <div className="nav-group" key={group.label}><small>{group.label}</small>{group.items.map((item) => <button key={item} className={active === item ? 'active' : ''} aria-current={active === item ? 'page' : undefined} onClick={() => navigate(item)}>{item}</button>)}</div>)}</nav>
+      <button className="sidebar-logout" type="button" onClick={logout}>Logout</button>
       <div className="user-card"><span>{(auth.user?.display_name || 'SP').slice(0, 2).toUpperCase()}</span><div><strong>{auth.user?.display_name}</strong><small>Household</small></div></div>
     </aside>
     <button className="mobile-nav-backdrop" type="button" aria-label="Close Fynvo navigation" tabIndex={mobileNavOpen ? 0 : -1} onClick={() => closeMobileNav()}></button>
     <main className="content">
       <div className="mobile-app-bar" aria-label="Fynvo application controls"><button ref={menuButtonRef} className="mobile-menu-button" type="button" aria-label={mobileNavOpen ? 'Close Fynvo navigation' : 'Open Fynvo navigation'} aria-expanded={mobileNavOpen} aria-controls="fynvo-navigation" onClick={() => setMobileNavOpen((open) => !open)}><span aria-hidden="true">☰</span><span className="sr-only">Menu</span></button><strong className="mobile-app-identity">Fynvo</strong></div>
-      <header className="header"><div><p className="eyebrow">Fynvo v0.17.0</p><h1>{active === 'Overview' ? `Good morning, ${auth.user?.display_name || 'there'}! 👋` : active}</h1><p>{active === 'Overview' ? "Here's your financial overview and what's ahead." : active === 'Insights' ? 'Understand what is changing, why it matters and which data supports it.' : 'Manage household financial records and planning.'}</p></div><div className="header-actions"><label className="select-shell">Date range<select value={rangeDays} onChange={(e) => setRangeDays(Number(e.target.value))}>{horizonOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><button className="primary ghost" onClick={() => setQuick(quickDefaults('transactions'))}>+ Quick Add</button><button className="logout-action" onClick={logout}>Logout</button></div></header>{error && <p className="error banner">{error}</p>}{success && <p className="success banner">{success}</p>}
+      <header className="header"><div><h1>{active === 'Overview' ? `${greeting}, ${auth.user?.display_name || 'there'}! 👋` : active}</h1><p>{active === 'Overview' ? "Here's your financial overview and what's ahead." : active === 'Insights' ? 'Understand what is changing, why it matters and which data supports it.' : 'Manage household financial records and planning.'}</p></div><div className="header-actions"><label className="select-shell">Date range<select value={rangeDays} onChange={(e) => setRangeDays(Number(e.target.value))}>{horizonOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><button className="primary ghost" onClick={() => setQuickMenuOpen(true)}>+ Quick Add</button></div></header>{error && <p className="error banner">{error}</p>}{success && <p className="success banner">{success}</p>}
       {active === 'Overview' && <Overview data={data} setActive={navigate} rangeDays={rangeDays} setQuick={setQuick} quickDefaults={quickDefaults}/>} 
-      {active === 'Cash Flow' && <ForecastPage forecast={data.command?.forecast?.expected || data.forecast}/>} 
+      {active === 'Cash Flow' && <ForecastPage forecast={data.command?.forecast?.expected || data.forecast} onView={openForecastDetail}/>} 
       {active === 'Calendar' && <CalendarPage command={data.command}/>} 
       {active === 'CSV Import' && <CsvImport state={importState} setState={setImportState} accounts={data.accounts} previewImport={previewImport} commitImport={commitImport}/>} 
       {active === 'Import History' && <ImportHistory rows={data.imports}/>} 
@@ -187,7 +236,13 @@ export default function App() {
       {active === 'Budgeting' && <Budgeting budgets={data.budgets} analysis={data.budgetAnalysis} categories={data.categories} onEdit={(row) => setEdit({ type: 'budgets', label: 'Budget', row, values: normaliseRecord('budgets', row) })}/>} 
       {active === 'Goals' && <GoalsPage goals={data.goals} accounts={data.accounts} onEdit={(row) => setEdit({ type: 'goals', label: 'Goal', row, values: normaliseRecord('goals', row) })} onAdd={() => setQuick(quickDefaults('goals'))} onComplete={completeGoal}/>} 
       {['Accounts','Transactions','Income','Recurring Expenses','Bills','Planned Spending','Categories'].includes(active) && <RecordTable active={active} data={data} onEdit={setEdit}/>} 
-    </main>{edit && <EditModal edit={edit} setEdit={setEdit} onSubmit={saveEdit} data={data}/>} {quick && <EditModal edit={{ ...quick, row: { id: null }, label: `New ${quick.type === 'goals' ? 'Goal' : quick.type.slice(0, -1)}` }} setEdit={setQuick} onSubmit={(e) => { e.preventDefault(); createRecord(quick.type, quick.values); }} data={data}/>}</div>;
+      <footer className="app-footer">Fynvo v0.17.1</footer>
+    </main>
+    {edit && <EditModal edit={edit} setEdit={setEdit} onSubmit={saveEdit} data={data}/>} 
+    {quick && <EditModal edit={{ ...quick, row: { id: null }, label: `New ${recordLabels[quick.type] || 'Record'}` }} setEdit={setQuick} onSubmit={(e) => { e.preventDefault(); createRecord(quick.type, quick.values); }} data={data}/>} 
+    {quickMenuOpen && <QuickAddModal onClose={() => setQuickMenuOpen(false)} onChoose={openQuickAdd}/>} 
+    {detail && <ForecastDetailModal detail={detail} data={data} onClose={() => setDetail(null)} onEdit={editForecastSource}/>} 
+  </div>;
 }
 
 function Overview({ data, setActive, rangeDays, setQuick, quickDefaults }) {
@@ -229,7 +284,10 @@ function GoalsPage({ goals, accounts, onEdit, onAdd, onComplete }) {
   return <section className="stack"><div className="kpi-grid four"><Kpi icon="🎯" label="Active Goals" value={goals.length}/><Kpi icon="🏁" label="Total Target" value={totals.target}/><Kpi icon="💰" label="Allocated / Saved" value={totals.current}/><Kpi icon="✅" label="Goals On Track" value={`${totals.onTrack} of ${goals.length}`}/></div><article className="panel"><PanelHead title="Financial Goals" action="+ Add Goal" onAction={onAdd}/>{goals.length ? <div className="goal-grid">{goals.map((goal) => <article className="goal-card" key={goal.id}><div className="goal-card-head"><div><h3>{goal.name}</h3><small>{goal.goal_type?.replace('_', ' ')} • {goal.priority}</small></div><Badge tone={goal.progress?.status === 'behind' ? 'warn' : 'ok'}>{goal.progress?.status || goal.calculated_status}</Badge></div><progress value={Math.min(Number(goal.progress?.percentage || 0), 100)} max="100"></progress><div className="goal-values"><span>{money(goal.progress?.current)} saved</span><strong>{goal.progress?.percentage || 0}%</strong><span>{money(goal.progress?.remaining)} left</span></div><p>{goal.progress?.explanation}</p><div className="goal-actions"><button onClick={() => onEdit(goal)}>Edit</button><button className="primary ghost" onClick={() => onComplete(goal.id)}>Complete</button></div></article>)}</div> : <Empty title="No Goals Yet">Create a goal to start planning for a holiday, emergency fund, debt target or annual expense.<button className="primary" onClick={onAdd}>+ Add Goal</button></Empty>}</article><article className="panel"><h2>Account allocation model</h2><p>Goal progress uses explicit allocations and contributions so one savings balance is not counted against multiple goals unless you allocate it that way.</p><p className="muted">Linked accounts available: {accounts.length || 0}</p></article></section>;
 }
 
-function ForecastPage({ forecast }) { return <section className="panel"><PanelHead title="Cash Flow"/><CashFlowChart baseline={forecast} expected={forecast}/><ForecastMetrics forecast={forecast}/><div className="table simple"><div className="thead"><span>Date</span><span>Item</span><span>Amount</span><span>Forecast balance</span></div>{(forecast?.events || []).map((item, i) => <div className="tr" key={i}><span>{dateLabel(item.date)}</span><span>{item.name}</span><span className={amountClass(item.amount)}>{money(item.amount)}</span><span>{money(item.forecast_balance)}</span></div>)}</div></section>; }
+function ForecastPage({ forecast, onView }) {
+  const events = forecast?.events || [];
+  return <section className="panel"><PanelHead title="Cash Flow"/><CashFlowChart baseline={forecast} expected={forecast}/><ForecastMetrics forecast={forecast}/><div className="cashflow-events"><h2>Upcoming cash flow</h2>{events.length ? <div className="table cashflow-table"><div className="thead"><span>Date</span><span>Item</span><span>Amount</span><span>Forecast balance</span><span></span></div>{events.map((item, i) => <div className="tr" key={`${item.source_type || 'event'}-${item.source_id || i}-${item.date}-${i}`}><span>{dateLabel(item.date)}</span><span className="event-name">{item.name}<small>{item.category || item.source_type?.replaceAll('_', ' ')}</small></span><span className={amountClass(item.amount)}>{money(item.amount)}</span><span>{money(item.forecast_balance)}</span><button type="button" className="event-action" onClick={() => onView(item)}>View more info</button></div>)}</div> : <Empty title="Nothing scheduled">No matching financial events in this period.</Empty>}</div></section>;
+}
 function CalendarPage({ command }) { return <section className="panel"><PanelHead title="Financial Calendar"/><CompactEvents rows={command?.upcoming || []}/></section>; }
 function SpendingIntelligence({ suggestions, dismissSuggestion }) { return <section className="panel"><PanelHead title="Spending Intelligence"/><p className="muted">Review merchant, category, recurring and unusual-spending suggestions. Suggestions remain explainable and user-controlled.</p>{suggestions?.length ? suggestions.map((item) => <div className="suggestion" key={item.id}><div><strong>{item.title || item.suggestion_type}</strong><p>{item.explanation || item.reason || item.evidence}</p></div><Badge>{item.confidence || 'review'}</Badge><button onClick={() => dismissSuggestion(item.id)}>Dismiss</button></div>) : <Empty title="No suggestions waiting">Spending Intelligence has no unresolved items.</Empty>}</section>; }
 
@@ -244,6 +302,36 @@ function RecordList({ rows, onEdit }) { return rows?.length ? rows.map((row) => 
 function CsvImport({ state, setState, accounts, previewImport, commitImport }) { return <section className="panel"><PanelHead title="CSV Import & Reconciliation"/><form className="form-grid" onSubmit={previewImport}><Field label="Filename" value={state.filename} onChange={(e) => setState({ ...state, filename: e.target.value })}/><Field label="Account"><select value={state.account_id} onChange={(e) => setState({ ...state, account_id: e.target.value })}><option value="">Choose account</option>{accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field><label className="field wide"><span>CSV text</span><textarea rows="10" value={state.csv_text} onChange={(e) => setState({ ...state, csv_text: e.target.value })}/></label><button className="primary">Preview CSV</button></form>{state.preview && <div className="notice"><p>{state.preview.valid_count || 0} valid rows, {state.preview.duplicate_count || 0} duplicates.</p><button className="primary" onClick={commitImport}>Commit Import</button></div>}</section>; }
 function ImportHistory({ rows }) { return <section className="panel"><PanelHead title="Import History"/>{rows?.length ? rows.map((row) => <div className="list-row" key={row.id}><span>{row.filename}<small>{dateLabel(row.created_at)}</small></span><strong>{row.imported_count} imported</strong></div>) : <Empty title="No imports yet">Import a CSV to see history.</Empty>}</section>; }
 function ReviewQueue({ rows, acceptMatch }) { return <section className="panel"><PanelHead title="Reconciliation Review Queue"/>{rows?.length ? rows.map((row) => <div className="suggestion" key={row.id}><div><strong>{row.transaction?.description || row.source_type}</strong><p>{row.status} • confidence {row.confidence}</p></div><button className="primary ghost" onClick={() => acceptMatch(row.id)}>Accept</button></div>) : <Empty title="No reconciliation items">Imported transactions that need review will appear here.</Empty>}</section>; }
+
+function QuickAddModal({ onClose, onChoose }) {
+  return <div className="modal-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="quick-add-title"><div className="panel-head"><div><h2 id="quick-add-title">Quick Add</h2><p className="muted">Choose what you want to add.</p></div><button type="button" aria-label="Close Quick Add" onClick={onClose}>×</button></div><div className="quick-add-grid">{quickAddOptions.map(([type, label, description]) => <button type="button" className="quick-add-choice" key={type} onClick={() => onChoose(type)}><strong>{label}</strong><small>{description}</small></button>)}</div></section></div>;
+}
+
+function ForecastDetailModal({ detail, data, onClose, onEdit }) {
+  const event = detail.event || {};
+  const record = detail.record || {};
+  const account = data.accounts.find((row) => Number(row.id) === Number(event.account_id || record.account_id || record.destination_account_id));
+  const details = [
+    ['Date', dateLabel(event.date)],
+    ['Amount', money(event.amount)],
+    ['Forecast balance after item', money(event.forecast_balance)],
+    ['Source', event.source_type?.replaceAll('_', ' ') || 'Forecast event'],
+    ['Category', event.category],
+    ['Account', account?.name],
+    ['Confidence', event.confidence],
+    ['Financial layer', event.financial_layer],
+    ['Frequency', record.frequency],
+    ['Provider', record.provider],
+    ['Payer', record.payer],
+    ['Priority', record.priority],
+    ['Status', record.status],
+    ['Direct debit', record.direct_debit === undefined ? null : record.direct_debit ? 'Yes' : 'No'],
+    ['Variable amount', record.variable_amount === undefined ? null : record.variable_amount ? 'Yes' : 'No'],
+    ['Explanation', event.explanation, true],
+    ['Notes', record.notes, true],
+  ].filter(([, value]) => value !== null && value !== undefined && value !== '');
+  return <div className="modal-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}><section className="modal detail-modal" role="dialog" aria-modal="true" aria-labelledby="forecast-detail-title"><div className="panel-head"><div><h2 id="forecast-detail-title">{event.name || 'Cash flow item'}</h2><p className="muted">Forecast event details and the source record behind it.</p></div><button type="button" aria-label="Close cash flow details" onClick={onClose}>×</button></div><div className="detail-grid">{details.map(([label, value, wide]) => <div className={`detail-item ${wide ? 'wide' : ''}`} key={label}><span>{label}</span>{wide ? <p>{String(value)}</p> : <strong className={label === 'Amount' ? amountClass(event.amount) : ''}>{String(value)}</strong>}</div>)}</div>{!detail.record && <p className="muted">This item is a calculated or estimated forecast event, so there is no editable source record.</p>}<div className="modal-actions"><button type="button" onClick={onClose}>Close</button>{detail.record && <button type="button" className="primary detail-edit" onClick={onEdit}>Edit source</button>}</div></section></div>;
+}
 
 function EditModal({ edit, setEdit, onSubmit, data }) {
   const values = edit.values || {};
