@@ -42,7 +42,7 @@ forecast._recurring_events = v1.forecast_recurring_events_v1
 
 # Import route modules only after the compatibility patches above. v09 binds
 # category and recurring helpers at import time.
-from . import (  # noqa: E402
+from . import (
     auth_v15,
     banking_v12,
     budget_v14,
