@@ -4,7 +4,7 @@ v1.0.0 keeps the proven v0.x services in place and layers stable-production
 reference-data, card, recurring-payment and migration behaviour on top of them.
 """
 
-from . import budget, database, finance, forecast, schemas, v1
+from . import auth, budget, database, finance, forecast, schemas, v1
 
 # Preserve the v0.17 migration chain, then run the forward-only v1 migration.
 _legacy_run_migrations = database.run_migrations
@@ -34,6 +34,21 @@ def _ensure_seed_data_v1(db, user) -> None:
 
 
 finance.ensure_seed_data = _ensure_seed_data_v1
+
+# Bootstrap the stable reference data and legacy household seed immediately after
+# first-admin creation. This keeps existing post-setup APIs populated without
+# requiring users to visit a Settings/reference-data endpoint first.
+_legacy_create_initial_admin = auth.create_initial_admin
+
+
+def _create_initial_admin_v1(db, username, password, display_name):
+    user = _legacy_create_initial_admin(db, username, password, display_name)
+    v1.ensure_reference_data(db, user)
+    _legacy_ensure_seed_data(db, user)
+    return user
+
+
+auth.create_initial_admin = _create_initial_admin_v1
 
 budget.list_categories = v1.list_categories_v1
 budget.create_category = v1.create_category_v1
