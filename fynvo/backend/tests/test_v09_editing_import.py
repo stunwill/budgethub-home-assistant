@@ -29,7 +29,17 @@ def test_all_major_records_can_be_edited_and_persist(client):
 
     recurring = client.post("/api/recurring-expenses", json={"name": "Internet", "amount": "140", "frequency": "monthly", "next_due_date": "2026-09-01", "account_id": account["id"], "category": "Utilities > Internet"}).json()
     assert client.put(f"/api/recurring-expenses/{recurring['id']}", json={"amount": "80", "effective_from": "2026-10-01", "notes": "Plan changed"}).status_code == 200
-    assert any(row["amount"] == "80.00" and row["notes"] == "Plan changed" for row in client.get("/api/recurring-expenses").json())
+    recurring_after = next(row for row in client.get("/api/recurring-expenses").json() if row["id"] == recurring["id"])
+    assert recurring_after["amount"] == "140.00"
+    assert recurring_after["notes"] == "Plan changed"
+    with get_engine().connect() as connection:
+        future_change = connection.execute(
+            text("SELECT new_amount_cents, effective_from FROM effective_amount_changes WHERE record_type='recurring_expense' AND record_id=:id ORDER BY id DESC LIMIT 1"),
+            {"id": recurring["id"]},
+        ).first()
+    assert future_change is not None
+    assert future_change.new_amount_cents == 8000
+    assert str(future_change.effective_from)[:10] == "2026-10-01"
 
     bill = client.post("/api/bills", json={"name": "Electricity", "provider": "Powershop", "amount": "280", "due_date": "2026-08-22", "bill_type": "Utilities > Electricity"}).json()
     assert client.put(f"/api/bills/{bill['id']}", json={"amount": "296.40", "due_date": "2026-08-23", "status": "paid"}).status_code == 200
@@ -41,12 +51,12 @@ def test_all_major_records_can_be_edited_and_persist(client):
     assert client.put(f"/api/planned-spending/{planned['id']}", json={"estimated_amount": "1168", "merchant": "Bob Jane", "status": "committed"}).status_code == 200
     assert any(row["estimated_amount"] == "1168.00" and row["merchant"] == "Bob Jane" for row in client.get("/api/planned-spending").json())
 
-    parent = client.post("/api/categories", json={"name": "Utilities", "budget_relationship": "shared_parent_pool"}).json()
-    child = client.post("/api/categories", json={"name": "Electricity", "parent_id": parent["id"]}).json()
+    parent = client.post("/api/categories", json={"name": "Custom Utilities", "budget_relationship": "shared_parent_pool"}).json()
+    child = client.post("/api/categories", json={"name": "Custom Electricity", "parent_id": parent["id"]}).json()
     assert client.put(f"/api/categories/{child['id']}", json={"name": "Power", "parent_id": parent["id"], "color": "#1f6feb"}).status_code == 200
-    assert any(row["path"] == "Utilities > Power" for row in client.get("/api/categories").json())
+    assert any(row["path"] == "Custom Utilities → Power" for row in client.get("/api/categories").json())
 
-    budget = client.post("/api/budgets", json={"name": "Utilities", "category_id": parent["id"], "category_name": "Utilities", "amount": "600", "period": "monthly", "start_date": "2026-08-01", "anchor_date": "2026-08-01"}).json()
+    budget = client.post("/api/budgets", json={"name": "Custom Utilities", "category_id": parent["id"], "category_name": "Custom Utilities", "amount": "600", "period": "monthly", "start_date": "2026-08-01", "anchor_date": "2026-08-01"}).json()
     assert client.put(f"/api/budgets/{budget['id']}", json={"amount": "650", "effective_from": "2026-09-01", "relationship_mode": "shared_parent_pool"}).status_code == 200
     assert any(row["amount"] == "650.00" and row["relationship_mode"] == "shared_parent_pool" for row in client.get("/api/budgets").json())
 
