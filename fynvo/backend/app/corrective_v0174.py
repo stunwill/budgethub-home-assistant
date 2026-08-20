@@ -12,7 +12,7 @@ from .database import get_db
 from .finance import list_recurring, today_local
 from .models import User
 from .money import cents_to_decimal
-from .v1 import _occurrence_dates, list_categories_v1
+from .v1 import _occurrence_dates, _sync_category_denormalized_values, list_categories_v1
 
 router = APIRouter(prefix="/corrective-v0174")
 DB = Depends(get_db)
@@ -31,6 +31,83 @@ def _norm(value: str | None) -> str:
     return " ".join((value or "").strip().casefold().split())
 
 
+def _reassign_category_references(
+    db: DbSession,
+    user: User,
+    duplicate_id: int,
+    canonical_id: int,
+) -> None:
+    for table in (
+        "transactions",
+        "income_sources",
+        "recurring_expenses",
+        "planned_spending",
+        "bills",
+        "budgets",
+    ):
+        db.execute(
+            text(f"UPDATE {table} SET category_id=:canonical WHERE user_id=:uid AND category_id=:duplicate"),
+            {"canonical": canonical_id, "duplicate": duplicate_id, "uid": user.id},
+        )
+    db.execute(
+        text("UPDATE categories SET parent_id=:canonical WHERE user_id=:uid AND parent_id=:duplicate"),
+        {"canonical": canonical_id, "duplicate": duplicate_id, "uid": user.id},
+    )
+    db.execute(
+        text("""
+            UPDATE categories
+            SET is_active=0,
+                notes=trim(COALESCE(notes,'') || :note),
+                updated_at=CURRENT_TIMESTAMP
+            WHERE id=:duplicate AND user_id=:uid
+        """),
+        {
+            "duplicate": duplicate_id,
+            "uid": user.id,
+            "note": f"\nConsolidated into category #{canonical_id} by v0.17.5 duplicate cleanup.",
+        },
+    )
+
+
+def _consolidate_duplicate_categories(db: DbSession, user: User) -> None:
+    """Merge duplicate active parent/child categories while preserving all linked history."""
+    changed = False
+
+    # Parent duplicates must be merged first so their children end up under one parent.
+    for parent_id in (None, "children"):
+        rows = [
+            dict(row)
+            for row in db.execute(
+                text("SELECT * FROM categories WHERE user_id=:uid AND is_active=1 ORDER BY id"),
+                {"uid": user.id},
+            ).mappings().all()
+        ]
+        groups: dict[tuple[int | None, str], list[dict[str, Any]]] = {}
+        for row in rows:
+            row_parent = row.get("parent_id")
+            if parent_id is None and row_parent is not None:
+                continue
+            if parent_id == "children" and row_parent is None:
+                continue
+            key = (None if row_parent is None else int(row_parent), _norm(row.get("name")))
+            if not key[1]:
+                continue
+            groups.setdefault(key, []).append(row)
+
+        for matches in groups.values():
+            if len(matches) < 2:
+                continue
+            canonical = matches[0]
+            canonical_id = int(canonical["id"])
+            for duplicate in matches[1:]:
+                _reassign_category_references(db, user, int(duplicate["id"]), canonical_id)
+                changed = True
+
+    if changed:
+        _sync_category_denormalized_values(db, user)
+        db.commit()
+
+
 def _consolidate_categories(db: DbSession, user: User) -> None:
     """Merge the two overlapping housing-maintenance categories without deleting history."""
     rows = [dict(row) for row in db.execute(text(
@@ -38,11 +115,13 @@ def _consolidate_categories(db: DbSession, user: User) -> None:
     ), {"uid": user.id}).mappings().all()]
     housing = next((row for row in rows if row.get("parent_id") is None and _norm(row.get("name")) == "housing"), None)
     if not housing:
+        _consolidate_duplicate_categories(db, user)
         return
     children = [row for row in rows if row.get("parent_id") == housing["id"]]
     old_names = {"home maintenance", "home improvements", "house maintenance", "house improvements"}
     candidates = [row for row in children if _norm(row.get("name")) in old_names or _norm(row.get("name")) == "home maintenance & improvements"]
     if not candidates:
+        _consolidate_duplicate_categories(db, user)
         return
     canonical = next((row for row in candidates if _norm(row.get("name")) == "home maintenance & improvements"), None)
     if canonical is None:
@@ -91,6 +170,7 @@ def _consolidate_categories(db: DbSession, user: User) -> None:
     db.execute(text("UPDATE bills SET bill_type=:path WHERE user_id=:uid AND category_id=:canonical"), {"canonical": canonical_id, "uid": user.id, "path": canonical_path})
     db.execute(text("UPDATE budgets SET category_name=:path WHERE user_id=:uid AND category_id=:canonical"), {"canonical": canonical_id, "uid": user.id, "path": canonical_path})
     db.commit()
+    _consolidate_duplicate_categories(db, user)
 
 
 def _descendant_ids(categories: list[dict[str, Any]], category_id: int) -> set[int]:
