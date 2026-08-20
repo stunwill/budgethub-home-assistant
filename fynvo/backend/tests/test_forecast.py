@@ -63,7 +63,8 @@ def test_shortfall_and_scenario_are_calculated_without_mutating_records(client):
     client.post("/api/planned-spending", json={"name": "Car Repair", "estimated_amount": "500", "planned_date": "2026-08-20", "status": "committed", "category": "Transport", "include_in_forecast": True})
     forecast = client.get("/api/forecast?horizon=7d&start=2026-08-16").json()
     assert forecast["shortfall"]["date"] == "2026-08-20"
-    scenario = client.post("/api/forecast/scenario", json={"name": "Extra income", "horizon": "7d", "mode": "baseline", "adjustments": [{"kind": "one_off_income", "name": "Sale", "amount": "600", "date": "2026-08-19"}]}).json()
+    scenario_date = (today_local() + timedelta(days=1)).isoformat()
+    scenario = client.post("/api/forecast/scenario", json={"name": "Extra income", "horizon": "7d", "mode": "baseline", "adjustments": [{"kind": "one_off_income", "name": "Sale", "amount": "600", "date": scenario_date}]}).json()
     assert scenario["isolated"] is True
     assert scenario["difference"] == "600.00"
     planned = client.get("/api/planned-spending").json()

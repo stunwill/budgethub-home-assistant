@@ -5,8 +5,17 @@ reference-data, card, recurring-payment and migration behaviour on top of them.
 """
 
 from contextvars import ContextVar
+from types import SimpleNamespace
+
+from fastapi import Depends, HTTPException
+from sqlalchemy import text
 
 from . import budget, database, finance, forecast, schemas, v1
+from .auth import get_current_user
+from .money import cents_to_decimal, parse_money
+
+USER_DEPENDENCY = Depends(get_current_user)
+DB_DEPENDENCY = Depends(database.get_db)
 
 # Preserve the v0.17 migration chain, then run the forward-only v1 migration.
 _legacy_run_migrations = database.run_migrations
@@ -19,9 +28,90 @@ def _run_migrations_v1() -> None:
 
 database.run_migrations = _run_migrations_v1
 
+# Keep the canonical v1 seed contract intact. The v0.17.4 Categories corrective
+# view consolidates these two overlapping Housing children safely at presentation
+# time, but reference-data seeding remains backwards-compatible and idempotent.
+v1.CATEGORY_SEED["Housing"] = [
+    "Mortgage",
+    "Rent",
+    "Council Rates",
+    "Body Corporate",
+    "Home Maintenance",
+    "Home Improvements",
+    "Security",
+]
+
 # Main imports these names after package initialisation, so patching the existing
 # modules avoids a broad route/API rewrite while making v1 behaviour authoritative.
 schemas.RecurringExpenseCreate = v1.RecurringExpenseCreateV1
+
+# v1 recurring responses expose the stable acceptance contract used by both the
+# existing API and the v0.17.4 UI. Keep detailed missing-field evidence while
+# returning the established high-level completeness state.
+_legacy_get_card = v1._get_card
+
+
+def _get_card_v0174(db, user, card_id, active_only=False):
+    row = _legacy_get_card(db, user, card_id, active_only)
+    if row is None:
+        return None
+    values = dict(row._mapping)
+    values["display_name"] = f"{values['name']} ••••{values['last_four']}"
+    return SimpleNamespace(**values)
+
+
+v1._get_card = _get_card_v0174
+_legacy_recurring_response_v1 = v1._recurring_response
+
+
+def _calculated_cost_v0174(amount, frequency, interval_count=None):
+    if amount in (None, ""):
+        return {"monthly": None, "annual": None, "show_monthly": False}
+    amount_cents = parse_money(amount)
+    factor = v1._annual_factor(frequency, interval_count)
+    if factor is None:
+        return {"monthly": None, "annual": None, "show_monthly": False}
+    annual_cents = round(amount_cents * float(factor))
+    show_monthly = frequency in {"weekly", "fortnightly", "every_28_days", "every_4_weeks", "monthly", "custom"}
+    monthly = cents_to_decimal(round(annual_cents / 12)) if show_monthly else None
+    return {"monthly": monthly, "annual": cents_to_decimal(annual_cents), "show_monthly": show_monthly}
+
+
+def _recurring_response_v0174(db, user, row):
+    result = _legacy_recurring_response_v1(db, user, row)
+    required_missing = [
+        field
+        for field in result.get("missing_fields", [])
+        if field in {"amount", "frequency", "next_due_date", "account", "card"}
+    ]
+    if not result.get("is_active"):
+        result["completeness"] = "inactive_incomplete" if required_missing else "inactive"
+    else:
+        result["completeness"] = "incomplete" if required_missing else "complete"
+    result["missing_fields"] = required_missing
+    result["calculated_cost"] = _calculated_cost_v0174(
+        result.get("amount"), result.get("frequency"), result.get("interval_count")
+    )
+    result["derived_account_id"] = result.get("account_id")
+    result["derived_account_name"] = result.get("account_name")
+    if result.get("card_id"):
+        card = _get_card_v0174(db, user, result["card_id"])
+        result["card"] = {
+            "id": card.id,
+            "account_id": card.account_id,
+            "account_name": card.account_name,
+            "name": card.name,
+            "card_type": card.card_type,
+            "last_four": card.last_four,
+            "display_name": card.display_name,
+            "is_active": bool(card.is_active),
+        }
+    else:
+        result["card"] = None
+    return result
+
+
+v1._recurring_response = _recurring_response_v0174
 finance.create_recurring = v1.create_recurring_v1
 finance.recurring_response = v1.recurring_response
 
@@ -113,12 +203,90 @@ v1.list_recurring_v1 = _list_recurring_v1_seeded
 finance.list_recurring = _list_recurring_v1_seeded
 forecast._recurring_events = v1.forecast_recurring_events_v1
 
+# Replace the old cost helper route with the stable acceptance response shape.
+v1.router.routes = [
+    route
+    for route in v1.router.routes
+    if getattr(route, "path", None) != "/recurring-expenses/cost"
+]
+
+
+def _recurring_cost_endpoint_v0174(
+    amount: str,
+    frequency: str,
+    interval_count: int | None = None,
+    current_user=USER_DEPENDENCY,
+):
+    del current_user
+    if frequency not in v1.SUPPORTED_FREQUENCIES:
+        raise HTTPException(status_code=400, detail="Unsupported recurrence frequency")
+    return _calculated_cost_v0174(amount, frequency, interval_count)
+
+
+v1.router.add_api_route(
+    "/recurring-expenses/cost",
+    _recurring_cost_endpoint_v0174,
+    methods=["GET"],
+)
+
+
+def _data_integrity_v0174(
+    current_user=USER_DEPENDENCY,
+    db=DB_DEPENDENCY,
+):
+    schema_version = db.execute(text("SELECT MAX(version) FROM schema_version")).scalar() or 0
+    orphan_cards = db.execute(
+        text(
+            """
+            SELECT COUNT(*)
+            FROM cards c
+            LEFT JOIN accounts a ON a.id=c.account_id AND a.user_id=c.user_id
+            WHERE c.user_id=:uid AND a.id IS NULL
+            """
+        ),
+        {"uid": current_user.id},
+    ).scalar() or 0
+    orphan_category_references = 0
+    for table_name in (
+        "transactions",
+        "income_sources",
+        "recurring_expenses",
+        "bills",
+        "planned_spending",
+        "budgets",
+    ):
+        orphan_category_references += db.execute(
+            text(
+                f"""
+                SELECT COUNT(*)
+                FROM {table_name} r
+                LEFT JOIN categories c ON c.id=r.category_id AND c.user_id=r.user_id
+                WHERE r.user_id=:uid AND r.category_id IS NOT NULL AND c.id IS NULL
+                """
+            ),
+            {"uid": current_user.id},
+        ).scalar() or 0
+    return {
+        "schema_version": int(schema_version),
+        "orphan_cards": int(orphan_cards),
+        "orphan_category_references": int(orphan_category_references),
+        "status": "ok" if not orphan_cards and not orphan_category_references else "error",
+    }
+
+
+v1.router.add_api_route(
+    "/v1/acceptance/data-integrity",
+    _data_integrity_v0174,
+    methods=["GET"],
+)
+
 # Import route modules only after the compatibility patches above. v09 binds
 # category and recurring helpers at import time.
 from . import (
     auth_v15,
     banking_v12,
     budget_v14,
+    corrective_v0174,
     dashboard_v12,
     goals,
     insights_v14,
@@ -148,3 +316,4 @@ v09.router.include_router(goals.router)
 v09.router.include_router(banking_v12.router)
 v09.router.include_router(scenarios.router)
 v09.router.include_router(insights_v14.router)
+v09.router.include_router(corrective_v0174.router)

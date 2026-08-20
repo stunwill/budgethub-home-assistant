@@ -147,7 +147,7 @@ def test_migration_schema_version_nine(client):
 
 
 def test_home_assistant_spa_routes_and_api_protection(client):
-    assert client.get("/api/health").json()["version"] == "0.17.0"
+    assert client.get("/api/health").json()["version"] == "0.17.4"
     assert client.get("/").status_code == 200
     assert client.get("/login").status_code == 200
     assert client.get("/accounts").status_code == 200
