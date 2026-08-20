@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-from . import v12_extra as extra
 from . import v12_household as household
+from . import v12_extra as extra
 
 router = APIRouter(prefix="/household", tags=["household"])
 router.add_api_route("/current", household.current_household, methods=["GET"])
