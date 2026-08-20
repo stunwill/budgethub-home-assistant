@@ -13,6 +13,8 @@ from . import budget, database, finance, forecast, schemas, v1
 from .auth import get_current_user
 from .money import cents_to_decimal, parse_money
 
+USER_DEPENDENCY = Depends(get_current_user)
+
 # Preserve the v0.17 migration chain, then run the forward-only v1 migration.
 _legacy_run_migrations = database.run_migrations
 
@@ -67,7 +69,7 @@ def _calculated_cost_v0174(amount, frequency, interval_count=None):
     factor = v1._annual_factor(frequency, interval_count)
     if factor is None:
         return {"monthly": None, "annual": None, "show_monthly": False}
-    annual_cents = int(round(amount_cents * float(factor)))
+    annual_cents = round(amount_cents * float(factor))
     show_monthly = frequency in {"weekly", "fortnightly", "every_28_days", "every_4_weeks", "monthly", "custom"}
     monthly = cents_to_decimal(round(annual_cents / 12)) if show_monthly else None
     return {"monthly": monthly, "annual": cents_to_decimal(annual_cents), "show_monthly": show_monthly}
@@ -209,7 +211,7 @@ def _recurring_cost_endpoint_v0174(
     amount: str,
     frequency: str,
     interval_count: int | None = None,
-    current_user=Depends(get_current_user),
+    current_user=USER_DEPENDENCY,
 ):
     del current_user
     if frequency not in v1.SUPPORTED_FREQUENCIES:
