@@ -1,6 +1,16 @@
+import pytest
 from app.database import get_engine
 from app.v11 import _totp
 from sqlalchemy import text
+
+
+@pytest.fixture(autouse=True)
+def authenticated_user(client):
+    response = client.post(
+        "/api/auth/setup",
+        json={"username": "stu", "display_name": "Stu", "password": "Password123!"},
+    )
+    assert response.status_code == 201
 
 
 def _create_account(client, name="Kristy ING"):
