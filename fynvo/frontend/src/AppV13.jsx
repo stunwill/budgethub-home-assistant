@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import App from './App.jsx';
+import App from './AppCorrectiveV0174.jsx';
 import LoginPage from './LoginPage.jsx';
 
 const api = (path, options = {}) => fetch(`api${path}`, {
