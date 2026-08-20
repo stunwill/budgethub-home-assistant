@@ -1,6 +1,5 @@
-from sqlalchemy import text
-
 from app.database import get_engine
+from sqlalchemy import text
 
 
 def setup_user(client):
