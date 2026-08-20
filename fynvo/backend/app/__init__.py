@@ -10,7 +10,7 @@ from types import SimpleNamespace
 from fastapi import Depends, HTTPException
 from sqlalchemy import text
 
-from . import budget, database, finance, forecast, schemas, v1, v018
+from . import budget, database, finance, forecast, schemas, v018, v1
 from .auth import get_current_user
 from .money import cents_to_decimal, parse_money
 
