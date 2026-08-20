@@ -1,7 +1,8 @@
 """Fynvo application package.
 
-v1.0.0 keeps the proven v0.x services in place and layers stable-production
-reference-data, card, recurring-payment and migration behaviour on top of them.
+v1.1.0 keeps the proven v0.x/v1.0 services in place and layers post-v1
+financial data coverage, transaction splitting, stronger authentication and
+portability foundations on top of them.
 """
 
 from contextvars import ContextVar
@@ -17,13 +18,68 @@ from .money import cents_to_decimal, parse_money
 USER_DEPENDENCY = Depends(get_current_user)
 DB_DEPENDENCY = Depends(database.get_db)
 
-# Preserve the v0.17 migration chain, then run the forward-only v1 migration.
+# Preserve the v0.17 migration chain, then run the forward-only v1 migration and
+# the v1.1 migration. Existing records and IDs remain in place.
 _legacy_run_migrations = database.run_migrations
+
+
+def _run_v11_migrations(engine) -> None:
+    with engine.begin() as connection:
+        def has_column(table: str, column: str) -> bool:
+            rows = connection.execute(text(f"PRAGMA table_info({table})")).mappings().all()
+            return any(row["name"] == column for row in rows)
+
+        def add_column(table: str, definition: str) -> None:
+            column = definition.split()[0]
+            if not has_column(table, column):
+                connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {definition}"))
+
+        for definition in (
+            "source_type VARCHAR(40) NOT NULL DEFAULT 'csv'",
+            "source_institution VARCHAR(140)",
+            "parser_profile VARCHAR(180)",
+            "transaction_span_start DATE",
+            "transaction_span_end DATE",
+            "coverage_status VARCHAR(20) NOT NULL DEFAULT 'unknown'",
+            "coverage_start DATE",
+            "coverage_end DATE",
+            "coverage_note TEXT",
+            "coverage_confirmed_at DATETIME",
+            "coverage_confirmed_by INTEGER",
+        ):
+            add_column("import_batches", definition)
+
+        connection.execute(text("""
+            CREATE TABLE IF NOT EXISTS transaction_splits (
+                id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                transaction_id INTEGER NOT NULL,
+                amount_cents INTEGER NOT NULL,
+                category_id INTEGER,
+                category_name VARCHAR(180),
+                notes TEXT,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id),
+                FOREIGN KEY(transaction_id) REFERENCES transactions(id),
+                FOREIGN KEY(category_id) REFERENCES categories(id)
+            )
+        """))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS idx_transaction_splits_transaction ON transaction_splits(user_id, transaction_id)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS idx_import_batches_coverage ON import_batches(user_id, account_id, coverage_status, coverage_start, coverage_end)"))
+
+        current = connection.execute(text("SELECT MAX(version) FROM schema_version")).scalar()
+        if current is None:
+            connection.execute(text("INSERT INTO schema_version(version) VALUES (10)"))
+        elif int(current) < 10:
+            connection.execute(text("UPDATE schema_version SET version=10"))
 
 
 def _run_migrations_v1() -> None:
     _legacy_run_migrations()
-    v1.run_v1_migrations(database.get_engine())
+    engine = database.get_engine()
+    v1.run_v1_migrations(engine)
+    _run_v11_migrations(engine)
 
 
 database.run_migrations = _run_migrations_v1
@@ -333,6 +389,7 @@ from . import (
     insights_v14,
     scenarios,
     v09,
+    v11,
 )
 
 # Replace legacy routes whose implementations are superseded by authoritative
@@ -359,3 +416,4 @@ v09.router.include_router(scenarios.router)
 v09.router.include_router(insights_v14.router)
 v09.router.include_router(corrective_v0174.router)
 v09.router.include_router(v018.router)
+v09.router.include_router(v11.router)

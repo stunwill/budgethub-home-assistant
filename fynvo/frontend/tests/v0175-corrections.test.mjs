@@ -11,7 +11,7 @@ const corrective = await readFile(new URL('../src/v0174-corrective.jsx', import.
 test('v0.17.5 corrective stylesheet remains loaded after the earlier UX styles', () => {
   assert.match(entry, /import '\.\/corrective-v0175\.css';/);
   assert.ok(entry.indexOf("'./corrective-v0175.css'") > entry.indexOf("'./ux-v171.css'"));
-  assert.match(corrective, /APP_VERSION_V0174 = '1\.0\.0'/);
+  assert.match(corrective, /APP_VERSION_V0174 = '1\.1\.0'/);
 });
 
 test('overview no longer displays the redundant next seven days card', () => {

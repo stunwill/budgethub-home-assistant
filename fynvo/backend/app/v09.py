@@ -326,6 +326,7 @@ def import_preview(payload: dict[str, Any], current_user: User = USER, db: DbSes
     rows = _preview_rows(db, current_user, csv_text, mapping, account_id)
     db.execute(text("INSERT OR REPLACE INTO import_profiles (user_id, source_name, mapping_json, updated_at) VALUES (:user_id, :source, :mapping, :now)"), {"user_id": current_user.id, "source": payload.get("source_name") or "Latest CSV", "mapping": str(mapping), "now": utcnow()})
     db.commit()
+    valid_dates = [_as_date(row["date"]) for row in rows if not row["errors"] and row.get("date")]
     return {
         "headers": list(csv.DictReader(io.StringIO(csv_text.strip())).fieldnames or []),
         "rows": [{k: v for k, v in row.items() if k != "amount_cents"} for row in rows],
@@ -335,6 +336,8 @@ def import_preview(payload: dict[str, Any], current_user: User = USER, db: DbSes
             "duplicates": len([r for r in rows if "duplicate" in r["status"]]),
             "matches": len([r for r in rows if r["matches"]]),
             "invalid": len([r for r in rows if r["errors"]]),
+            "transaction_span_start": min(valid_dates).isoformat() if valid_dates else None,
+            "transaction_span_end": max(valid_dates).isoformat() if valid_dates else None,
         },
     }
 
@@ -347,13 +350,25 @@ def import_commit(payload: dict[str, Any], current_user: User = USER, db: DbSess
     rows = _preview_rows(db, current_user, payload.get("csv_text") or "", payload.get("mapping") or {}, account_id)
     now = utcnow()
     filename = re.sub(r"[^A-Za-z0-9_. -]", "_", payload.get("filename") or "bank-import.csv")[:180]
+    source_type = str(payload.get("source_type") or "csv")[:40]
+    source_institution = str(payload.get("source_institution") or "")[:140] or None
+    parser_profile = str(payload.get("source_name") or "Australian bank CSV")[:180]
     db.execute(text("""
-        INSERT INTO import_batches (user_id, filename, account_id, row_count, imported_count, skipped_count, duplicate_count, matched_count, failed_count, status, created_at, updated_at)
-        VALUES (:user_id, :filename, :account_id, :row_count, 0, 0, 0, 0, 0, 'processing', :now, :now)
-    """), {"user_id": current_user.id, "filename": filename, "account_id": account_id, "row_count": len(rows), "now": now})
+        INSERT INTO import_batches (
+            user_id, filename, account_id, row_count, imported_count, skipped_count,
+            duplicate_count, matched_count, failed_count, status, source_type,
+            source_institution, parser_profile, coverage_status, created_at, updated_at
+        )
+        VALUES (
+            :user_id, :filename, :account_id, :row_count, 0, 0, 0, 0, 0,
+            'processing', :source_type, :source_institution, :parser_profile,
+            'unknown', :now, :now
+        )
+    """), {"user_id": current_user.id, "filename": filename, "account_id": account_id, "row_count": len(rows), "source_type": source_type, "source_institution": source_institution, "parser_profile": parser_profile, "now": now})
     batch_id = db.execute(text("SELECT last_insert_rowid()")).scalar()
     imported = skipped = duplicates = matched = failed = 0
     imported_rows = []
+    imported_dates: list[date] = []
     for row in rows:
         if row["errors"]:
             failed += 1
@@ -362,24 +377,37 @@ def import_commit(payload: dict[str, Any], current_user: User = USER, db: DbSess
             duplicates += 1
             skipped += 1
             continue
+        tx_date = _as_date(row["date"])
         signed_amount = row["amount"] if row["transaction_type"] == "income" else f"-{row['amount']}"
-        created = create_transaction(db, current_user, TransactionCreate(account_id=account_id, date=_as_date(row["date"]), amount=signed_amount, transaction_type=row["transaction_type"], description=row["description"], merchant=row["merchant"], category=row["category"], source="csv", status="cleared", raw_description=row["description"]))
+        created = create_transaction(db, current_user, TransactionCreate(account_id=account_id, date=tx_date, amount=signed_amount, transaction_type=row["transaction_type"], description=row["description"], merchant=row["merchant"], category=row["category"], source="csv", status="cleared", raw_description=row["description"]))
         db.execute(text("UPDATE transactions SET import_batch_id=:batch_id, external_id=:external_id, import_date=:now, reconciliation_state=:state WHERE id=:id AND user_id=:user_id"), {"batch_id": str(batch_id), "external_id": row["fingerprint"], "now": now, "state": "suggested_match" if row["matches"] else "unmatched", "id": created["id"], "user_id": current_user.id})
         if row["matches"]:
             best = row["matches"][0]
             db.execute(text("INSERT INTO reconciliation_links (user_id, transaction_id, source_type, source_id, expected_amount_cents, actual_amount_cents, variance_cents, status, confidence, created_at, updated_at) VALUES (:user_id, :transaction_id, :source_type, :source_id, :expected, :actual, :variance, 'suggested_match', :confidence, :now, :now)"), {"user_id": current_user.id, "transaction_id": created["id"], "source_type": best["source_type"], "source_id": best["source_id"], "expected": parse_money(best["expected_amount"]), "actual": row["amount_cents"], "variance": parse_money(best["variance"]), "confidence": best["confidence"], "now": now})
             matched += 1
         imported += 1
+        imported_dates.append(tx_date)
         imported_rows.append(created)
-    db.execute(text("UPDATE import_batches SET imported_count=:imported, skipped_count=:skipped, duplicate_count=:duplicates, matched_count=:matched, failed_count=:failed, status='complete', updated_at=:now WHERE id=:id AND user_id=:user_id"), {"id": batch_id, "user_id": current_user.id, "imported": imported, "skipped": skipped, "duplicates": duplicates, "matched": matched, "failed": failed, "now": now})
+    span_start = min(imported_dates) if imported_dates else None
+    span_end = max(imported_dates) if imported_dates else None
+    db.execute(text("""
+        UPDATE import_batches
+        SET imported_count=:imported, skipped_count=:skipped,
+            duplicate_count=:duplicates, matched_count=:matched,
+            failed_count=:failed, status='complete',
+            transaction_span_start=:span_start,
+            transaction_span_end=:span_end,
+            updated_at=:now
+        WHERE id=:id AND user_id=:user_id
+    """), {"id": batch_id, "user_id": current_user.id, "imported": imported, "skipped": skipped, "duplicates": duplicates, "matched": matched, "failed": failed, "span_start": span_start, "span_end": span_end, "now": now})
     db.commit()
-    return {"batch_id": batch_id, "rows_processed": len(rows), "new_transactions": imported, "duplicates_skipped": duplicates, "matched": matched, "failed": failed, "transactions": imported_rows}
+    return {"batch_id": batch_id, "rows_processed": len(rows), "new_transactions": imported, "duplicates_skipped": duplicates, "matched": matched, "failed": failed, "transaction_span_start": span_start.isoformat() if span_start else None, "transaction_span_end": span_end.isoformat() if span_end else None, "coverage_status": "unknown", "transactions": imported_rows}
 
 
 @router.get("/imports/history")
 def import_history(current_user: User = USER, db: DbSession = DB):
-    rows = db.execute(text("SELECT * FROM import_batches WHERE user_id=:user_id ORDER BY created_at DESC"), {"user_id": current_user.id}).all()
-    return [{"id": row.id, "filename": row.filename, "account_id": row.account_id, "row_count": row.row_count, "imported_count": row.imported_count, "skipped_count": row.skipped_count, "duplicate_count": row.duplicate_count, "matched_count": row.matched_count, "failed_count": row.failed_count, "status": row.status, "created_at": str(row.created_at)} for row in rows]
+    rows = db.execute(text("SELECT * FROM import_batches WHERE user_id=:user_id ORDER BY created_at DESC"), {"user_id": current_user.id}).mappings().all()
+    return [{"id": row["id"], "filename": row["filename"], "account_id": row["account_id"], "row_count": row["row_count"], "imported_count": row["imported_count"], "skipped_count": row["skipped_count"], "duplicate_count": row["duplicate_count"], "matched_count": row["matched_count"], "failed_count": row["failed_count"], "status": row["status"], "source_type": row.get("source_type") or "csv", "transaction_span_start": str(row.get("transaction_span_start")) if row.get("transaction_span_start") else None, "transaction_span_end": str(row.get("transaction_span_end")) if row.get("transaction_span_end") else None, "coverage_status": row.get("coverage_status") or "unknown", "coverage_start": str(row.get("coverage_start")) if row.get("coverage_start") else None, "coverage_end": str(row.get("coverage_end")) if row.get("coverage_end") else None, "created_at": str(row["created_at"])} for row in rows]
 
 
 @router.get("/reconciliation/review-queue")

@@ -42,7 +42,7 @@ function Feature({ icon, title, children }) {
 }
 
 function getErrorMessage(response, payload) {
-  if (response.status === 401) return 'Invalid username or password.';
+  if (response.status === 401) return payload?.detail || 'Invalid username, password or verification code.';
   if (response.status === 403) return 'This account is currently disabled.';
   if (response.status === 428) return 'Administrator account has not been configured.';
   if (response.status === 429) return 'Too many sign-in attempts. Please wait and try again.';
@@ -59,9 +59,42 @@ export default function LoginPage({ authState, onAuthenticated, onStateRefresh }
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [mfaChallenge, setMfaChallenge] = useState(null);
+  const [mfaCode, setMfaCode] = useState('');
   const usernameRef = useRef(null);
+  const mfaRef = useRef(null);
 
-  useEffect(() => { usernameRef.current?.focus(); }, []);
+  useEffect(() => {
+    if (mfaChallenge) mfaRef.current?.focus();
+    else usernameRef.current?.focus();
+  }, [mfaChallenge]);
+
+  async function submitMfa(event) {
+    event.preventDefault();
+    if (loading) return;
+    const code = mfaCode.trim();
+    if (!code) { setError('Enter your authenticator or recovery code.'); return; }
+    setLoading(true);
+    setError('');
+    try {
+      const response = await api('/v11/auth/mfa-challenge', {
+        method: 'POST',
+        body: JSON.stringify({ challenge_token: mfaChallenge.challenge_token, code }),
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        setError(getErrorMessage(response, body));
+        return;
+      }
+      setMfaCode('');
+      setMfaChallenge(null);
+      await onAuthenticated?.(body);
+    } catch {
+      setError('We could not complete MFA verification. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function submit(event) {
     event.preventDefault();
@@ -85,6 +118,12 @@ export default function LoginPage({ authState, onAuthenticated, onStateRefresh }
         if (response.status === 428) await onStateRefresh?.();
         return;
       }
+      if (body?.mfa_required) {
+        setMfaChallenge(body);
+        setPassword('');
+        setConfirmPassword('');
+        return;
+      }
       setPassword('');
       setConfirmPassword('');
       await onAuthenticated?.(body);
@@ -95,65 +134,31 @@ export default function LoginPage({ authState, onAuthenticated, onStateRefresh }
     }
   }
 
+  const challengeForm = <form className="fynvo-auth-card" onSubmit={submitMfa} noValidate>
+    <img className="fynvo-auth-card-logo" src={logo} alt="Fynvo"/>
+    <div className="fynvo-auth-heading"><h2>Two-step verification</h2><p>Enter the 6-digit code from your authenticator, or one of your Fynvo recovery codes.</p></div>
+    {error && <div className="fynvo-auth-error" role="alert"><strong>Verification failed</strong><span>{error}</span></div>}
+    <label className="fynvo-auth-field"><span>Verification code</span><div className="fynvo-auth-input"><i><ShieldIcon/></i><input ref={mfaRef} name="mfa-code" autoComplete="one-time-code" inputMode="numeric" value={mfaCode} onChange={(event) => setMfaCode(event.target.value)} placeholder="123456 or recovery code" disabled={loading}/></div></label>
+    <button className="fynvo-auth-submit" type="submit" disabled={loading} aria-busy={loading}>{loading ? 'Verifying…' : 'Verify and sign in'}{!loading && <ArrowIcon/>}</button>
+    <button className="fynvo-auth-secondary" type="button" disabled={loading} onClick={() => { setMfaChallenge(null); setMfaCode(''); setError(''); }}>Back to sign in</button>
+  </form>;
+
   return <main className="fynvo-auth-page">
-    <section className="fynvo-auth-brand-panel" aria-label="Fynvo">
-      <div className="fynvo-auth-brand-inner">
-        <div className="fynvo-auth-brand-lockup"><img src={mark} alt=""/><strong>Fynvo</strong></div>
-        <div className="fynvo-auth-brand-copy">
-          <h1>Know what's<br className="desktop-only"/> coming<span>.</span></h1>
-          <p>Plan today. See what's ahead.<br/>Fynvo helps you forecast, budget and stay in control of your financial future.</p>
-        </div>
-        <div className="fynvo-auth-features">
-          <Feature icon={<ForecastIcon/>} title="Forecast with confidence">See your future cash flow and plan ahead.</Feature>
-          <Feature icon={<WalletIcon/>} title="Budget smarter">Stay on track with budgets that work for you.</Feature>
-          <Feature icon={<ShieldIcon/>} title="Financial clarity">All your finances in one place, clear and simple.</Feature>
-        </div>
-        <div className="fynvo-auth-chart" aria-hidden="true"><i/><i/><i/><i/><i/><i/><i/><i/></div>
-      </div>
-    </section>
-
+    <section className="fynvo-auth-brand-panel" aria-label="Fynvo"><div className="fynvo-auth-brand-inner"><div className="fynvo-auth-brand-lockup"><img src={mark} alt=""/><strong>Fynvo</strong></div><div className="fynvo-auth-brand-copy"><h1>Know what's<br className="desktop-only"/> coming<span>.</span></h1><p>Plan today. See what's ahead.<br/>Fynvo helps you forecast, budget and stay in control of your financial future.</p></div><div className="fynvo-auth-features"><Feature icon={<ForecastIcon/>} title="Forecast with confidence">See your future cash flow and plan ahead.</Feature><Feature icon={<WalletIcon/>} title="Budget smarter">Stay on track with budgets that work for you.</Feature><Feature icon={<ShieldIcon/>} title="Financial clarity">All your finances in one place, clear and simple.</Feature></div><div className="fynvo-auth-chart" aria-hidden="true"><i/><i/><i/><i/><i/><i/><i/><i/></div></div></section>
     <section className="fynvo-auth-form-panel">
-      <div className="fynvo-auth-mobile-intro">
-        <img src={mark} alt="Fynvo"/>
-        <strong>Fynvo</strong>
-        <h1>Know what's coming<span>.</span></h1>
-        <p>Plan today. See what's ahead.</p>
-      </div>
-
-      <form className="fynvo-auth-card" onSubmit={submit} noValidate>
+      <div className="fynvo-auth-mobile-intro"><img src={mark} alt="Fynvo"/><strong>Fynvo</strong><h1>Know what's coming<span>.</span></h1><p>Plan today. See what's ahead.</p></div>
+      {mfaChallenge ? challengeForm : <form className="fynvo-auth-card" onSubmit={submit} noValidate>
         <img className="fynvo-auth-card-logo" src={logo} alt="Fynvo"/>
-        <div className="fynvo-auth-heading">
-          <h2>{setupMode ? 'Create administrator' : 'Welcome back'}</h2>
-          <p>{setupMode ? 'Create your Fynvo administrator account.' : 'Sign in to access your financial overview.'}</p>
-        </div>
-
+        <div className="fynvo-auth-heading"><h2>{setupMode ? 'Create administrator' : 'Welcome back'}</h2><p>{setupMode ? 'Create your Fynvo administrator account.' : 'Sign in to access your financial overview.'}</p></div>
         {authState?.message && <div className="fynvo-auth-notice" role="status">{authState.message}</div>}
         {error && <div className="fynvo-auth-error" role="alert"><strong>Unable to sign in</strong><span>{error}</span></div>}
-
-        <label className="fynvo-auth-field">
-          <span>Username</span>
-          <div className="fynvo-auth-input"><i><UserIcon/></i><input ref={usernameRef} name="username" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Enter your username" disabled={loading}/></div>
-        </label>
-
-        {setupMode && <label className="fynvo-auth-field">
-          <span>Display name</span>
-          <div className="fynvo-auth-input"><i><UserIcon/></i><input name="name" autoComplete="name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Enter your display name" disabled={loading}/></div>
-        </label>}
-
-        <label className="fynvo-auth-field">
-          <span>Password</span>
-          <div className="fynvo-auth-input"><i><LockIcon/></i><input name="password" type={showPassword ? 'text' : 'password'} autoComplete={setupMode ? 'new-password' : 'current-password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" disabled={loading}/><button type="button" className="fynvo-auth-eye" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Hide password' : 'Show password'} disabled={loading}><EyeIcon hidden={showPassword}/></button></div>
-        </label>
-
-        {setupMode && <label className="fynvo-auth-field">
-          <span>Confirm password</span>
-          <div className="fynvo-auth-input"><i><LockIcon/></i><input name="confirm-password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm your password" disabled={loading}/></div>
-        </label>}
-
+        <label className="fynvo-auth-field"><span>Username</span><div className="fynvo-auth-input"><i><UserIcon/></i><input ref={usernameRef} name="username" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Enter your username" disabled={loading}/></div></label>
+        {setupMode && <label className="fynvo-auth-field"><span>Display name</span><div className="fynvo-auth-input"><i><UserIcon/></i><input name="name" autoComplete="name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Enter your display name" disabled={loading}/></div></label>}
+        <label className="fynvo-auth-field"><span>Password</span><div className="fynvo-auth-input"><i><LockIcon/></i><input name="password" type={showPassword ? 'text' : 'password'} autoComplete={setupMode ? 'new-password' : 'current-password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" disabled={loading}/><button type="button" className="fynvo-auth-eye" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Hide password' : 'Show password'} disabled={loading}><EyeIcon hidden={showPassword}/></button></div></label>
+        {setupMode && <label className="fynvo-auth-field"><span>Confirm password</span><div className="fynvo-auth-input"><i><LockIcon/></i><input name="confirm-password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm your password" disabled={loading}/></div></label>}
         <button className="fynvo-auth-submit" type="submit" disabled={loading} aria-busy={loading}>{loading ? 'Signing in…' : setupMode ? 'Create Administrator Account' : 'Sign in'}{!loading && <ArrowIcon/>}</button>
-      </form>
-
-      <div className="fynvo-auth-security"><ShieldIcon/><div><strong>Your data is secure with Fynvo</strong><p>Your financial data and authentication are protected by Fynvo's server-side access controls.</p></div></div>
+      </form>}
+      <div className="fynvo-auth-security"><ShieldIcon/><div><strong>Your data is secure with Fynvo</strong><p>Your financial data and authentication are protected by Fynvo's server-side access controls and optional authenticator-based MFA.</p></div></div>
     </section>
   </main>;
 }

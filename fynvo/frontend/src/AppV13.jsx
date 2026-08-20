@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import App from './AppCorrectiveV0174.jsx';
 import LoginPage from './LoginPage.jsx';
+import V11ControlCenter from './V11ControlCenter.jsx';
 
 const api = (path, options = {}) => fetch(`api${path}`, {
   credentials: 'same-origin',
@@ -11,6 +12,7 @@ const api = (path, options = {}) => fetch(`api${path}`, {
 export default function AppV13() {
   const [auth, setAuth] = useState(null);
   const [recoveryWarningDismissed, setRecoveryWarningDismissed] = useState(false);
+  const [v11Mode, setV11Mode] = useState(null);
   const observerRef = useRef(null);
 
   async function refreshAuth() {
@@ -59,6 +61,10 @@ export default function AppV13() {
     />;
   }
 
+  if (v11Mode) {
+    return <V11ControlCenter mode={v11Mode} onClose={() => setV11Mode(null)}/>;
+  }
+
   return <>
     {auth.recovery_mode && !recoveryWarningDismissed && (
       <div className="fynvo-recovery-warning" role="status" aria-live="polite">
@@ -67,5 +73,11 @@ export default function AppV13() {
       </div>
     )}
     <App />
+    <nav className="v11-launcher" aria-label="Fynvo v1.1 data and security tools">
+      <button type="button" onClick={() => setV11Mode('coverage')}>Data Coverage</button>
+      <button type="button" onClick={() => setV11Mode('splits')}>Split Transaction</button>
+      <button type="button" onClick={() => setV11Mode('security')}>Security & MFA</button>
+      <button type="button" onClick={() => setV11Mode('export')}>Data Export</button>
+    </nav>
   </>;
 }
