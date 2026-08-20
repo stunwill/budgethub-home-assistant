@@ -22,6 +22,8 @@ This roadmap is the canonical development queue for Fynvo. Future development sh
 16. Financial Insights must be evidence-backed, consistent with source financial calculations and free from unsupported personal financial advice.
 17. Fynvo must remain one responsive application across phone, tablet, desktop and Home Assistant ingress.
 18. Stable-version work must prioritise reliability, data preservation and verifiable core workflows over new feature expansion.
+19. Category identity and hierarchy must be authoritative, normalised and safe to reorganise without losing historical financial records.
+20. Recurring definitions, forecast occurrences, commitments and actual transactions must remain distinguishable so future reconciliation can match records without duplicating obligations.
 
 ## Core product concepts
 
@@ -57,7 +59,7 @@ A versioned view of what data changed on a financial record, such as amount, dat
 
 ## Release definition of done from v0.3.0 onward
 
-Every release must include a version bump, database migrations where required, automated tests, CI validation, a CHANGELOG entry, Home Assistant release notes, GitHub release notes and user-readable release notes.
+Every release must include a version bump, database migrations where required, automated tests, CI validation, a CHANGELOG entry, Home Assistant-visible release notes, GitHub release notes and user-readable release notes.
 
 Home Assistant ingress access, login, protected APIs, core create/edit persistence and safe upgrade behaviour are release blockers.
 
@@ -283,9 +285,9 @@ A real installed Home Assistant/iPhone acceptance run remains an operational acc
 
 ### v0.17.0 - Pre-v1.0 Reliability & Responsive Hardening
 
-Status: In development. Automated implementation is complete when CI passes; installed Home Assistant acceptance remains release-gating.
+Status: Completed and merged.
 
-Delivered/implemented scope:
+Delivered scope:
 - root-cause correction for the Accounts `+ Add` failure where the generic modal generated `PUT /api/accounts/null`;
 - create/update contract separation in the shared frontend workflow, with `POST` for new records and ID-based `PUT` for persisted records;
 - exact `Kristy - Main AC` Account create/edit regression coverage;
@@ -305,18 +307,49 @@ Delivered/implemented scope:
 - v1.0 readiness assessment in `docs/V1_READINESS_v0.17.0.md`;
 - release metadata, changelog and release-note updates.
 
-Release gates still requiring the installed product environment:
-- create `Kristy - Main AC` through the normal UI and confirm persistence across reload, add-on restart and logout/login;
-- complete the iPhone/Home Assistant ingress mobile drawer workflow;
-- verify configured administrator/recovery behaviour after add-on restart;
-- test representative v0.16.0 household data upgraded to v0.17.0 without data loss;
-- complete backup/restore validation before stable v1.0.0 tagging.
+### v0.17.4-v0.17.5 - Corrective Category and Mobile Workflow Releases
+
+Status: Completed and merged.
+
+Delivered scope:
+- corrected Categories parent/child presentation and historical duplicate consolidation;
+- preserved linked financial values while duplicate Category records were deactivated;
+- removed the redundant Overview `Upcoming / Next 7 days` card while retaining Upcoming Commitments;
+- removed the global date-range control from the Income page;
+- improved corrective mobile layout and release regression coverage.
+
+### v0.18.0 - Financial Data Integrity, Category Management & Workflow Polish
+
+Status: In development.
+
+Planned/implemented scope:
+- authoritative Category-name normalisation across create and edit workflows, including case and repeated-whitespace duplicate prevention;
+- user-supported Category merge preview and merge operations that reassign financial references and archive the source without deleting history;
+- automatic consolidation of same-name child Categories when parent hierarchies are merged;
+- Category health diagnostics covering duplicate groups, orphan children, inactive-parent relationships, cycles, orphan/inactive references, stale denormalised paths and Category-type conflicts;
+- compact Category management UI with health checking, merge controls and reduced zero-entry visual noise;
+- recurring-expense duplicate review based on normalised name, amount, frequency, payment source and due-date proximity, without automatic merging;
+- Account/Card integrity diagnostics for orphan Cards and active Cards linked to archived Accounts;
+- filtered Upcoming Commitments service foundation with explicit duplicate-suppression helper and overdue inclusion;
+- continued reliance on the established linked Bill/Recurring Expense suppression in the schedule engine;
+- compact mobile workflow refinements for Categories, Recurring Expenses and financial record tables;
+- CI-equivalent local validation script to catch compile, Ruff, backend, frontend, metadata and Docker failures before PR creation;
+- expanded regression coverage for Category duplicate prevention, merge data preservation, Category health, recurring duplicate review and commitment de-duplication;
+- release metadata updated to v0.18.0.
+
+Explicitly out of scope:
+- direct ING connectivity;
+- new production Open Banking/CDR provider integration;
+- bank credential storage;
+- standalone Cloudways migration.
+
+Production CDR/provider work remains future scope. v0.18.0 prepares cleaner identities and data relationships without adding a bank-specific integration.
 
 ### v1.0.0 - Stable Production Release
 
-Planned scope after the v0.17.0 acceptance gates pass:
+Planned scope after the v0.18.0 acceptance gates pass:
 - final acceptance QA of functionality already delivered;
-- final v0.17-to-v1 upgrade/migration validation and representative older-data upgrade confirmation;
+- final v0.18-to-v1 upgrade/migration validation and representative older-data upgrade confirmation;
 - backup and restore validation/documentation;
 - final database integrity and recovery checks;
 - final authentication/session/security review;

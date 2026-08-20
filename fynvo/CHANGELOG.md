@@ -1,5 +1,36 @@
 # Fynvo Add-on Changelog
 
+## v0.18.0 - Financial Data Integrity, Category Management & Workflow Polish
+
+### Added
+- Category merge preview and confirmation workflow that reassigns linked financial records and deactivates the source Category without deleting history.
+- Category health checking for duplicate parents/children, orphan relationships, circular hierarchy, invalid/inactive references, stale Category paths and Category-type conflicts.
+- Non-destructive recurring-expense duplicate review using normalised names, amount, cadence, payment source and due-date proximity.
+- Card integrity diagnostics for orphan Cards and active Cards attached to archived Accounts.
+- Upcoming Commitments service foundation with overdue inclusion and duplicate suppression.
+- CI-equivalent local validation script for compile, Ruff, backend tests, frontend tests/build, metadata and Docker checks.
+
+### Changed
+- Category create and edit now treat case differences and repeated/leading/trailing whitespace as the same Category name within a parent.
+- Parent merges safely consolidate duplicate child Categories while preserving linked values and history.
+- Category management is more compact on mobile and no longer over-emphasises repeated `0 entries` links.
+- Recurring Expenses surface possible duplicate groups for review without automatically merging them.
+- Mobile financial record spacing is tightened while preserving touch targets.
+- Version updated to 0.18.0 across the Home Assistant add-on, backend and frontend.
+
+### Preserved
+- Upcoming Commitments remains the authoritative outgoing-obligation list. The redundant seven-day Upcoming Overview card remains removed.
+- Income remains independent of the global Date Range selector.
+- Linked Bill/Recurring Expense schedule suppression and effective-dated recurring amount changes continue to preserve existing forecast behaviour.
+- No direct ING integration, new production CDR provider, bank credentials or standalone Cloudways deployment is introduced in this release.
+
+### Regression protection
+- Category duplicate create/update coverage including case and whitespace normalisation.
+- Category merge and linked-record preservation coverage.
+- Category health duplicate-detection coverage.
+- Non-destructive recurring duplicate review coverage.
+- Commitment duplicate-suppression unit coverage.
+
 ## v0.17.0 - Core Reliability & Pre-v1.0 Hardening
 
 ### Fixed

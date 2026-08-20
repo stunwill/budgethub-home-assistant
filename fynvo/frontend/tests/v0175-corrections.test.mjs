@@ -8,10 +8,10 @@ const app = await readFile(new URL('../src/AppCorrectiveV0174.jsx', import.meta.
 const css = await readFile(new URL('../src/corrective-v0175.css', import.meta.url), 'utf8');
 const corrective = await readFile(new URL('../src/v0174-corrective.jsx', import.meta.url), 'utf8');
 
-test('v0.17.5 corrective stylesheet loads last', () => {
+test('v0.17.5 corrective stylesheet remains loaded after the earlier UX styles', () => {
   assert.match(entry, /import '\.\/corrective-v0175\.css';/);
   assert.ok(entry.indexOf("'./corrective-v0175.css'") > entry.indexOf("'./ux-v171.css'"));
-  assert.match(corrective, /APP_VERSION_V0174 = '0\.17\.5'/);
+  assert.match(corrective, /APP_VERSION_V0174 = '0\.18\.0'/);
 });
 
 test('overview no longer displays the redundant next seven days card', () => {

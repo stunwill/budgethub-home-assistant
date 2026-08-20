@@ -2,6 +2,40 @@
 
 All notable Fynvo changes are documented here. Starting with v0.3.0, every release must include a user-readable changelog entry, Home Assistant-visible release notes and GitHub release notes.
 
+## v0.18.0 - Financial Data Integrity, Category Management & Workflow Polish
+
+### Added
+- Added a supported Category merge workflow with a preview of affected Transactions, Income, Recurring Expenses, Bills, Planned Spending, Budgets and child Categories before any changes are made.
+- Added Category health diagnostics for duplicate parent/child Categories, orphan children, children of inactive parents, circular relationships, orphan/inactive references, stale denormalised paths and Category-type conflicts.
+- Added recurring-expense duplicate review using normalised name, amount, frequency, payment source and due-date proximity. Possible duplicates are surfaced for review and are never merged automatically.
+- Added Account/Card integrity diagnostics for orphan Cards and active Cards linked to archived Accounts.
+- Added a filtered Upcoming Commitments service foundation with overdue inclusion and duplicate-suppression support.
+- Added a single-command CI-equivalent validation script covering Python compilation, Ruff, backend tests, application import, frontend tests/build, Home Assistant metadata and Docker build.
+
+### Changed
+- Category duplicate prevention now normalises case, leading/trailing whitespace and repeated whitespace for create and rename/move operations.
+- Category merges preserve financial history by reassigning references and deactivating the source Category rather than deleting it.
+- Merging parent Categories also consolidates same-name child Categories under the destination while retaining their linked records.
+- Categories mobile presentation is more compact and no longer gives zero-entry links unnecessary visual emphasis.
+- Categories now expose `Check Category Data` and `Merge Category` actions directly from the management page.
+- Recurring Expenses now surface possible duplicate groups without automatically changing household data.
+- Mobile financial table/card spacing has been tightened while preserving touch targets and desktop behaviour.
+- Version metadata is aligned to v0.18.0 across the backend, frontend and Home Assistant add-on.
+
+### Preserved behaviour
+- The redundant Overview `Upcoming / Next 7 days` card remains removed. `Upcoming Commitments` remains the authoritative future-obligation view.
+- The Income page remains independent of the global Date Range selector.
+- Existing linked Bill/Recurring Expense schedule suppression remains in place so a linked Bill and its generated recurring occurrence are not both scheduled for the same date.
+- Effective-dated recurring amount changes remain the mechanism for changes such as `$140/month` becoming `$80/month` from a future date without rewriting history.
+- No direct ING connectivity, new production Open Banking/CDR provider, bank credentials or Cloudways migration is introduced by this release.
+
+### Regression protection
+- Added tests for case/whitespace Category duplicate prevention on create and update.
+- Added Category merge coverage proving linked Recurring Expense data survives parent/child consolidation.
+- Added Category health coverage for historical duplicate detection.
+- Added recurring-expense duplicate-review coverage proving detection is non-destructive.
+- Added commitment duplicate-suppression unit coverage.
+
 ## v0.17.0 - Core Reliability & Pre-v1.0 Hardening
 
 ### Fixed
@@ -37,7 +71,7 @@ All notable Fynvo changes are documented here. Starting with v0.3.0, every relea
 ### Added
 - Added a hamburger-controlled off-canvas mobile navigation drawer that reuses the authoritative Fynvo sidebar/navigation.
 - Added backdrop, close-button and Escape dismissal.
-- Added background scroll locking while the drawer is open and independent drawer scrolling.
+- Added background scroll locking while the mobile drawer is open and independent drawer scrolling.
 - Added iPhone safe-area and dynamic viewport-height handling.
 - Added mobile navigation focus management, ARIA state and reduced-motion support.
 - Added dependency-free frontend regression checks for responsive navigation behaviour.

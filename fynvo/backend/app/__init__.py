@@ -10,7 +10,7 @@ from types import SimpleNamespace
 from fastapi import Depends, HTTPException
 from sqlalchemy import text
 
-from . import budget, database, finance, forecast, schemas, v1
+from . import budget, database, finance, forecast, schemas, v018, v1
 from .auth import get_current_user
 from .money import cents_to_decimal, parse_money
 
@@ -184,8 +184,49 @@ def _list_categories_v1_seeded(db, user):
 
 v1.list_categories_v1 = _list_categories_v1_seeded
 budget.list_categories = _list_categories_v1_seeded
-budget.create_category = v1.create_category_v1
-budget.update_category = v1.update_category_v1
+
+# v0.18 strengthens duplicate prevention beyond SQL lower(name) comparisons by
+# applying the same whitespace/case normalisation to create and update workflows.
+_legacy_create_category_v1 = v1.create_category_v1
+_legacy_update_category_v1 = v1.update_category_v1
+
+
+def _normalise_parent_id(value):
+    if value in (None, "", 0, "0"):
+        return None
+    return int(value)
+
+
+def _create_category_v018(db, user, payload):
+    values = dict(payload)
+    values["name"] = " ".join(str(values.get("name") or "").strip().split())
+    parent_id = _normalise_parent_id(values.get("parent_id"))
+    values["parent_id"] = parent_id
+    v018.assert_category_unique(db, user, values["name"], parent_id)
+    return _legacy_create_category_v1(db, user, values)
+
+
+def _update_category_v018(db, user, category_id, payload):
+    existing = db.execute(
+        text("SELECT name,parent_id FROM categories WHERE id=:id AND user_id=:uid"),
+        {"id": category_id, "uid": user.id},
+    ).mappings().first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Category not found")
+    values = dict(payload)
+    name = " ".join(str(values.get("name", existing["name"]) or "").strip().split())
+    parent_id = _normalise_parent_id(values.get("parent_id", existing["parent_id"]))
+    values["name"] = name
+    if "parent_id" in values or parent_id != existing["parent_id"]:
+        values["parent_id"] = parent_id
+    v018.assert_category_unique(db, user, name, parent_id, exclude_id=category_id)
+    return _legacy_update_category_v1(db, user, category_id, values)
+
+
+v1.create_category_v1 = _create_category_v018
+v1.update_category_v1 = _update_category_v018
+budget.create_category = _create_category_v018
+budget.update_category = _update_category_v018
 
 # Preserve the v0.x household recurring/bill seed as part of the existing API
 # contract. The v1 recurring list remains authoritative after the legacy seed is
@@ -317,3 +358,4 @@ v09.router.include_router(banking_v12.router)
 v09.router.include_router(scenarios.router)
 v09.router.include_router(insights_v14.router)
 v09.router.include_router(corrective_v0174.router)
+v09.router.include_router(v018.router)
