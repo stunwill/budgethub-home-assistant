@@ -43,10 +43,10 @@ test('Overview keeps the redundant seven-day Upcoming card hidden', () => {
   assert.match(correctiveCss, /display: none/);
 });
 
-test('v0.18 responsive overrides load last and version is aligned', () => {
+test('v0.18 responsive overrides remain active and stable release version is aligned', () => {
   assert.match(entry, /'\.\/v018\.css'/);
   assert.ok(entry.indexOf("'./v018.css'") > entry.indexOf("'./corrective-v0175.css'"));
-  assert.match(version, /0\.18\.0/);
+  assert.match(version, /1\.0\.0/);
   assert.match(css, /@media\(max-width:980px\)/);
   assert.match(css, /@media\(max-width:600px\)/);
 });
