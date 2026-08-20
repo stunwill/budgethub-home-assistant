@@ -12,7 +12,11 @@ from .database import get_db
 from .finance import list_recurring, today_local
 from .models import User
 from .money import cents_to_decimal
-from .v1 import _occurrence_dates, _sync_category_denormalized_values, list_categories_v1
+from .v1 import (
+    _occurrence_dates,
+    _sync_category_denormalized_values,
+    list_categories_v1,
+)
 
 router = APIRouter(prefix="/corrective-v0174")
 DB = Depends(get_db)
