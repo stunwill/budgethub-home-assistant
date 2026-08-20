@@ -7,6 +7,8 @@ const app = await readFile(new URL('../src/AppCorrectiveV0174.jsx', import.meta.
 const entry = await readFile(new URL('../src/main.jsx', import.meta.url), 'utf8');
 const version = await readFile(new URL('../src/v0174-corrective.jsx', import.meta.url), 'utf8');
 const css = await readFile(new URL('../src/v018.css', import.meta.url), 'utf8');
+const correctiveCss = await readFile(new URL('../src/corrective-v0175.css', import.meta.url), 'utf8');
+const pageState = await readFile(new URL('../src/v018-page-state.js', import.meta.url), 'utf8');
 
 test('Category management exposes health check and safe merge workflow', () => {
   assert.match(pages, /Check Category Data/);
@@ -28,13 +30,18 @@ test('Recurring Expenses exposes non-destructive duplicate review', () => {
   assert.match(pages, /Nothing has been merged automatically/);
 });
 
-test('Income keeps the v0.17.5 Date Range correction', () => {
-  assert.match(app, /active !== 'Income'/);
+test('Income keeps the Date Range correction active', () => {
+  assert.match(entry, /'\.\/v018-page-state\.js'/);
+  assert.match(pageState, /fynvo-income-page/);
+  assert.match(pageState, /activeHeading === 'Income'/);
+  assert.match(correctiveCss, /body\.fynvo-income-page \.header-actions > \.select-shell/);
+  assert.match(correctiveCss, /display: none/);
 });
 
-test('Overview keeps the redundant seven-day Upcoming card removed', () => {
-  assert.doesNotMatch(app, /PanelHead title="Upcoming" meta="Next 7 days"/);
+test('Overview keeps the redundant seven-day Upcoming card hidden', () => {
   assert.match(app, /PanelHead title="Upcoming Commitments"/);
+  assert.match(correctiveCss, /\.dashboard-page > \.card-grid > article\.panel:first-child/);
+  assert.match(correctiveCss, /display: none/);
 });
 
 test('v0.18 responsive overrides load last and version is aligned', () => {
