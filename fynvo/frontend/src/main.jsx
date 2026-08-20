@@ -9,6 +9,7 @@ import './hardening-v17.css';
 import './ux-v171.css';
 import './corrective-v0175.css';
 import './v018.css';
+import './household-v12.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
