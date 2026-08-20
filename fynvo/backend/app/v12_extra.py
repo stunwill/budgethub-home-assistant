@@ -37,6 +37,23 @@ def _run_v12_extra_migrations() -> None:
             row["name"]
             for row in connection.execute(text("SELECT name FROM sqlite_master WHERE type='table'")).mappings()
         }
+        connection.execute(text("""
+            CREATE TRIGGER IF NOT EXISTS fynvo_v12_user_membership
+            AFTER INSERT ON users
+            BEGIN
+                INSERT OR IGNORE INTO household_memberships(
+                    household_id, user_id, role, status, joined_at, updated_at, deactivated_at
+                )
+                SELECT h.id, NEW.id,
+                       CASE WHEN NEW.is_admin = 1 THEN 'administrator' ELSE 'household_member' END,
+                       CASE WHEN NEW.is_active = 1 THEN 'active' ELSE 'inactive' END,
+                       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
+                       CASE WHEN NEW.is_active = 1 THEN NULL ELSE CURRENT_TIMESTAMP END
+                FROM households h
+                WHERE h.status='active'
+                ORDER BY h.id LIMIT 1;
+            END
+        """))
         for record_type, table in record_tables.items():
             if table not in existing_tables:
                 continue
