@@ -1,0 +1,7 @@
+.dashboard-page > .card-grid > article.panel:first-child {
+  display: none;
+}
+
+body.fynvo-income-page .header-actions > .select-shell {
+  display: none;
+}

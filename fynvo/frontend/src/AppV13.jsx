@@ -30,12 +30,21 @@ export default function AppV13() {
 
   useEffect(() => {
     if (!auth?.authenticated) return undefined;
+    const syncPageClass = () => {
+      const heading = document.querySelector('main.content .header h1')?.textContent?.trim();
+      document.body.classList.toggle('fynvo-income-page', heading === 'Income');
+    };
     const observer = new MutationObserver(() => {
+      syncPageClass();
       if (document.querySelector('main.login')) refreshAuth();
     });
     observer.observe(document.body, { childList: true, subtree: true });
     observerRef.current = observer;
-    return () => observer.disconnect();
+    syncPageClass();
+    return () => {
+      observer.disconnect();
+      document.body.classList.remove('fynvo-income-page');
+    };
   }, [auth?.authenticated]);
 
   if (!auth) {
