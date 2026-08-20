@@ -8,12 +8,14 @@ from contextvars import ContextVar
 from types import SimpleNamespace
 
 from fastapi import Depends, HTTPException
+from sqlalchemy import text
 
 from . import budget, database, finance, forecast, schemas, v1
 from .auth import get_current_user
 from .money import cents_to_decimal, parse_money
 
 USER_DEPENDENCY = Depends(get_current_user)
+DB_DEPENDENCY = Depends(database.get_db)
 
 # Preserve the v0.17 migration chain, then run the forward-only v1 migration.
 _legacy_run_migrations = database.run_migrations
@@ -82,7 +84,9 @@ def _recurring_response_v0174(db, user, row):
         for field in result.get("missing_fields", [])
         if field in {"amount", "frequency", "next_due_date", "account", "card"}
     ]
-    if result.get("completeness") != "inactive":
+    if not result.get("is_active"):
+        result["completeness"] = "inactive_incomplete" if required_missing else "inactive"
+    else:
         result["completeness"] = "incomplete" if required_missing else "complete"
     result["missing_fields"] = required_missing
     result["calculated_cost"] = _calculated_cost_v0174(
@@ -222,6 +226,57 @@ def _recurring_cost_endpoint_v0174(
 v1.router.add_api_route(
     "/recurring-expenses/cost",
     _recurring_cost_endpoint_v0174,
+    methods=["GET"],
+)
+
+
+def _data_integrity_v0174(
+    current_user=USER_DEPENDENCY,
+    db=DB_DEPENDENCY,
+):
+    schema_version = db.execute(text("SELECT MAX(version) FROM schema_version")).scalar() or 0
+    orphan_cards = db.execute(
+        text(
+            """
+            SELECT COUNT(*)
+            FROM cards c
+            LEFT JOIN accounts a ON a.id=c.account_id AND a.user_id=c.user_id
+            WHERE c.user_id=:uid AND a.id IS NULL
+            """
+        ),
+        {"uid": current_user.id},
+    ).scalar() or 0
+    orphan_category_references = 0
+    for table_name in (
+        "transactions",
+        "income_sources",
+        "recurring_expenses",
+        "bills",
+        "planned_spending",
+        "budgets",
+    ):
+        orphan_category_references += db.execute(
+            text(
+                f"""
+                SELECT COUNT(*)
+                FROM {table_name} r
+                LEFT JOIN categories c ON c.id=r.category_id AND c.user_id=r.user_id
+                WHERE r.user_id=:uid AND r.category_id IS NOT NULL AND c.id IS NULL
+                """
+            ),
+            {"uid": current_user.id},
+        ).scalar() or 0
+    return {
+        "schema_version": int(schema_version),
+        "orphan_cards": int(orphan_cards),
+        "orphan_category_references": int(orphan_category_references),
+        "status": "ok" if not orphan_cards and not orphan_category_references else "error",
+    }
+
+
+v1.router.add_api_route(
+    "/v1/acceptance/data-integrity",
+    _data_integrity_v0174,
     methods=["GET"],
 )
 
