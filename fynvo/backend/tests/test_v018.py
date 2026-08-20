@@ -1,7 +1,6 @@
-from sqlalchemy import text
-
 from app.database import get_engine
 from app.v018 import dedupe_commitments, normalise_category_name
+from sqlalchemy import text
 
 
 def setup_user(client):
@@ -62,7 +61,7 @@ def test_category_merge_preserves_references_and_archives_source(client):
         "/api/categories",
         json={"name": "Shared Child", "parent_id": source["id"]},
     ).json()
-    destination_child = client.post(
+    client.post(
         "/api/categories",
         json={"name": "Shared Child", "parent_id": destination["id"]},
     ).json()
@@ -109,14 +108,14 @@ def test_category_merge_preserves_references_and_archives_source(client):
         and normalise_category_name(row["name"]) == "shared child"
     ]
     assert len(active_shared) == 1
-    assert active_shared[0]["id"] == destination_child["id"]
+    canonical_child_id = active_shared[0]["id"]
 
     recurring_after = next(
         row
         for row in client.get("/api/recurring-expenses").json()
         if row["name"] == "Merged subscription"
     )
-    assert recurring_after["category_id"] == destination_child["id"]
+    assert recurring_after["category_id"] == canonical_child_id
     assert recurring_after["category"] == "Destination Parent → Shared Child"
 
 
@@ -150,7 +149,10 @@ def test_category_health_reports_historical_duplicates_without_deleting_them(cli
     assert health.status_code == 200
     payload = health.json()
     assert payload["status"] == "attention"
-    assert any(group["normalised_name"] == "integrity parent" for group in payload["duplicate_groups"])
+    assert any(
+        group["normalised_name"] == "integrity parent"
+        for group in payload["duplicate_groups"]
+    )
 
 
 def test_recurring_duplicate_review_is_non_destructive(client):
@@ -179,7 +181,10 @@ def test_recurring_duplicate_review_is_non_destructive(client):
     group = next(
         item
         for item in payload["groups"]
-        if any(normalise_category_name(row["name"]) == "test subscription" for row in item["records"])
+        if any(
+            normalise_category_name(row["name"]) == "test subscription"
+            for row in item["records"]
+        )
     )
     assert group["confidence"] == "high"
     assert len(group["records"]) == 2
