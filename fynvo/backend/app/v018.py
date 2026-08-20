@@ -156,8 +156,8 @@ def _merge_duplicate_children(db: DbSession, user: User, parent_id: int) -> None
             )
             db.execute(
                 text(
-                    "UPDATE categories SET is_active=0,archived_at=CURRENT_TIMESTAMP,"
-                    "updated_at=CURRENT_TIMESTAMP,notes=trim(COALESCE(notes,'') || :note) "
+                    "UPDATE categories SET is_active=0,updated_at=CURRENT_TIMESTAMP,"
+                    "notes=trim(COALESCE(notes,'') || :note) "
                     "WHERE id=:source AND user_id=:uid"
                 ),
                 {
@@ -189,8 +189,8 @@ def merge_category(db: DbSession, user: User, source_id: int, destination_id: in
     _merge_duplicate_children(db, user, destination_id)
     db.execute(
         text(
-            "UPDATE categories SET is_active=0,archived_at=CURRENT_TIMESTAMP,"
-            "updated_at=CURRENT_TIMESTAMP,notes=trim(COALESCE(notes,'') || :note) "
+            "UPDATE categories SET is_active=0,updated_at=CURRENT_TIMESTAMP,"
+            "notes=trim(COALESCE(notes,'') || :note) "
             "WHERE id=:source AND user_id=:uid"
         ),
         {
@@ -210,10 +210,13 @@ def merge_category(db: DbSession, user: User, source_id: int, destination_id: in
 
 
 def category_health(db: DbSession, user: User) -> dict[str, Any]:
-    categories = [dict(row) for row in db.execute(
-        text("SELECT * FROM categories WHERE user_id=:uid ORDER BY id"),
-        {"uid": user.id},
-    ).mappings().all()]
+    categories = [
+        dict(row)
+        for row in db.execute(
+            text("SELECT * FROM categories WHERE user_id=:uid ORDER BY id"),
+            {"uid": user.id},
+        ).mappings().all()
+    ]
     by_id = {int(row["id"]): row for row in categories}
     active = [row for row in categories if row.get("is_active")]
 
@@ -272,24 +275,47 @@ def category_health(db: DbSession, user: User) -> dict[str, Any]:
         "budgets": "category_name",
     }
     for table in CATEGORY_REFERENCE_TABLES:
-        orphan_references[table] = int(db.execute(text(f"""
-            SELECT COUNT(*) FROM {table} r
-            LEFT JOIN categories c ON c.id=r.category_id AND c.user_id=r.user_id
-            WHERE r.user_id=:uid AND r.category_id IS NOT NULL AND c.id IS NULL
-        """), {"uid": user.id}).scalar() or 0)
-        inactive_references[table] = int(db.execute(text(f"""
-            SELECT COUNT(*) FROM {table} r
-            JOIN categories c ON c.id=r.category_id AND c.user_id=r.user_id
-            WHERE r.user_id=:uid AND r.category_id IS NOT NULL AND c.is_active=0
-        """), {"uid": user.id}).scalar() or 0)
+        orphan_references[table] = int(
+            db.execute(
+                text(
+                    f"""
+                    SELECT COUNT(*) FROM {table} r
+                    LEFT JOIN categories c ON c.id=r.category_id AND c.user_id=r.user_id
+                    WHERE r.user_id=:uid AND r.category_id IS NOT NULL AND c.id IS NULL
+                    """
+                ),
+                {"uid": user.id},
+            ).scalar()
+            or 0
+        )
+        inactive_references[table] = int(
+            db.execute(
+                text(
+                    f"""
+                    SELECT COUNT(*) FROM {table} r
+                    JOIN categories c ON c.id=r.category_id AND c.user_id=r.user_id
+                    WHERE r.user_id=:uid AND r.category_id IS NOT NULL AND c.is_active=0
+                    """
+                ),
+                {"uid": user.id},
+            ).scalar()
+            or 0
+        )
         column = text_columns[table]
         stale = 0
         for record in db.execute(
-            text(f"SELECT category_id,{column} AS value FROM {table} WHERE user_id=:uid AND category_id IS NOT NULL"),
+            text(
+                f"SELECT category_id,{column} AS value FROM {table} "
+                "WHERE user_id=:uid AND category_id IS NOT NULL"
+            ),
             {"uid": user.id},
         ).mappings().all():
             expected = paths.get(int(record["category_id"]))
-            if expected and record.get("value") not in (None, "") and str(record["value"]) != str(expected):
+            if (
+                expected
+                and record.get("value") not in (None, "")
+                and str(record["value"]) != str(expected)
+            ):
                 stale += 1
         stale_paths[table] = stale
 
@@ -298,7 +324,12 @@ def category_health(db: DbSession, user: User) -> dict[str, Any]:
         if row.get("parent_id") is None:
             continue
         parent = by_id.get(int(row["parent_id"]))
-        if parent and parent.get("category_type") and row.get("category_type") and parent["category_type"] != row["category_type"]:
+        if (
+            parent
+            and parent.get("category_type")
+            and row.get("category_type")
+            and parent["category_type"] != row["category_type"]
+        ):
             type_conflicts.append(
                 {
                     "id": int(row["id"]),
@@ -376,7 +407,11 @@ def category_health_endpoint(db: DbSession = DB, current_user: User = USER):
 
 
 @router.post("/categories/merge/preview")
-def category_merge_preview(payload: dict[str, Any], db: DbSession = DB, current_user: User = USER):
+def category_merge_preview(
+    payload: dict[str, Any],
+    db: DbSession = DB,
+    current_user: User = USER,
+):
     source_id = int(payload.get("source_id") or 0)
     destination_id = int(payload.get("destination_id") or 0)
     source = _category_row(db, current_user, source_id)
@@ -392,7 +427,11 @@ def category_merge_preview(payload: dict[str, Any], db: DbSession = DB, current_
 
 
 @router.post("/categories/merge")
-def category_merge_endpoint(payload: dict[str, Any], db: DbSession = DB, current_user: User = USER):
+def category_merge_endpoint(
+    payload: dict[str, Any],
+    db: DbSession = DB,
+    current_user: User = USER,
+):
     return merge_category(
         db,
         current_user,
@@ -403,19 +442,27 @@ def category_merge_endpoint(payload: dict[str, Any], db: DbSession = DB, current
 
 @router.get("/recurring-expenses/duplicates")
 def recurring_duplicates(db: DbSession = DB, current_user: User = USER):
-    rows = [dict(row) for row in db.execute(text("""
-        SELECT id,name,amount_cents,frequency,next_due_date,account_id,card_id,is_active
-        FROM recurring_expenses
-        WHERE user_id=:uid AND is_active=1
-        ORDER BY id
-    """), {"uid": current_user.id}).mappings().all()]
+    rows = [
+        dict(row)
+        for row in db.execute(
+            text(
+                """
+                SELECT id,name,amount_cents,frequency,next_due_date,account_id,card_id,is_active
+                FROM recurring_expenses
+                WHERE user_id=:uid AND is_active=1
+                ORDER BY id
+                """
+            ),
+            {"uid": current_user.id},
+        ).mappings().all()
+    ]
     groups: list[dict[str, Any]] = []
     used: set[int] = set()
     for index, row in enumerate(rows):
         if int(row["id"]) in used:
             continue
         matches = [row]
-        for other in rows[index + 1:]:
+        for other in rows[index + 1 :]:
             name_matches = normalise_category_name(row["name"]) == normalise_category_name(other["name"])
             same_amount = row.get("amount_cents") == other.get("amount_cents")
             same_frequency = row.get("frequency") == other.get("frequency")
@@ -425,7 +472,13 @@ def recurring_duplicates(db: DbSession = DB, current_user: User = USER):
             )
             dates = (_as_date(row.get("next_due_date")), _as_date(other.get("next_due_date")))
             dates_close = all(dates) and abs((dates[0] - dates[1]).days) <= 7
-            if name_matches and same_amount and same_frequency and same_payment_source and (dates_close or dates[0] == dates[1]):
+            if (
+                name_matches
+                and same_amount
+                and same_frequency
+                and same_payment_source
+                and (dates_close or dates[0] == dates[1])
+            ):
                 matches.append(other)
         if len(matches) > 1:
             ids = [int(item["id"]) for item in matches]
@@ -433,7 +486,10 @@ def recurring_duplicates(db: DbSession = DB, current_user: User = USER):
             groups.append(
                 {
                     "confidence": "high",
-                    "reason": "Same normalised name, amount, frequency and payment source with matching/near due dates",
+                    "reason": (
+                        "Same normalised name, amount, frequency and payment source "
+                        "with matching/near due dates"
+                    ),
                     "records": matches,
                 }
             )
@@ -442,16 +498,32 @@ def recurring_duplicates(db: DbSession = DB, current_user: User = USER):
 
 @router.get("/cards/integrity")
 def card_integrity(db: DbSession = DB, current_user: User = USER):
-    orphan = int(db.execute(text("""
-        SELECT COUNT(*) FROM cards c
-        LEFT JOIN accounts a ON a.id=c.account_id AND a.user_id=c.user_id
-        WHERE c.user_id=:uid AND a.id IS NULL
-    """), {"uid": current_user.id}).scalar() or 0)
-    archived_account_cards = int(db.execute(text("""
-        SELECT COUNT(*) FROM cards c
-        JOIN accounts a ON a.id=c.account_id AND a.user_id=c.user_id
-        WHERE c.user_id=:uid AND c.is_active=1 AND a.archived_at IS NOT NULL
-    """), {"uid": current_user.id}).scalar() or 0)
+    orphan = int(
+        db.execute(
+            text(
+                """
+                SELECT COUNT(*) FROM cards c
+                LEFT JOIN accounts a ON a.id=c.account_id AND a.user_id=c.user_id
+                WHERE c.user_id=:uid AND a.id IS NULL
+                """
+            ),
+            {"uid": current_user.id},
+        ).scalar()
+        or 0
+    )
+    archived_account_cards = int(
+        db.execute(
+            text(
+                """
+                SELECT COUNT(*) FROM cards c
+                JOIN accounts a ON a.id=c.account_id AND a.user_id=c.user_id
+                WHERE c.user_id=:uid AND c.is_active=1 AND a.archived_at IS NOT NULL
+                """
+            ),
+            {"uid": current_user.id},
+        ).scalar()
+        or 0
+    )
     return {
         "status": "ok" if not orphan and not archived_account_cards else "attention",
         "orphan_cards": orphan,
@@ -472,28 +544,40 @@ def upcoming_commitments(
     start = today_local()
     end = start + timedelta(days=days)
     scheduled = schedule_summary(db, current_user, start, end)
-    items = [item for item in scheduled.get("events", []) if item.get("kind") in OUTGOING_KINDS]
+    items = [
+        item
+        for item in scheduled.get("events", [])
+        if item.get("kind") in OUTGOING_KINDS
+    ]
     if include_overdue:
-        overdue = db.execute(text("""
-            SELECT id,name,due_date,remaining_amount_cents,bill_type,account_id,category_id,recurring_expense_id
-            FROM bills
-            WHERE user_id=:uid AND is_active=1 AND paid_at IS NULL AND resolved_at IS NULL
-              AND due_date IS NOT NULL AND due_date < :today
-        """), {"uid": current_user.id, "today": start}).mappings().all()
+        overdue = db.execute(
+            text(
+                """
+                SELECT id,name,due_date,remaining_amount_cents,bill_type,account_id,
+                       category_id,recurring_expense_id
+                FROM bills
+                WHERE user_id=:uid AND is_active=1 AND paid_at IS NULL AND resolved_at IS NULL
+                  AND due_date IS NOT NULL AND due_date < :today
+                """
+            ),
+            {"uid": current_user.id, "today": start},
+        ).mappings().all()
         for row in overdue:
-            items.append({
-                "id": int(row["id"]),
-                "source_id": int(row["id"]),
-                "kind": "bill",
-                "name": row["name"],
-                "date": str(row["due_date"]),
-                "amount_cents": int(row["remaining_amount_cents"] or 0),
-                "category": row["bill_type"],
-                "account_id": row["account_id"],
-                "category_id": row["category_id"],
-                "recurring_expense_id": row["recurring_expense_id"],
-                "status": "overdue",
-            })
+            items.append(
+                {
+                    "id": int(row["id"]),
+                    "source_id": int(row["id"]),
+                    "kind": "bill",
+                    "name": row["name"],
+                    "date": str(row["due_date"]),
+                    "amount_cents": int(row["remaining_amount_cents"] or 0),
+                    "category": row["bill_type"],
+                    "account_id": row["account_id"],
+                    "category_id": row["category_id"],
+                    "recurring_expense_id": row["recurring_expense_id"],
+                    "status": "overdue",
+                }
+            )
     if account_id is not None:
         items = [item for item in items if item.get("account_id") in (None, account_id)]
     if category_id is not None:
