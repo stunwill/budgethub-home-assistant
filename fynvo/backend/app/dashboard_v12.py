@@ -119,7 +119,9 @@ def command_centre_dashboard_v12(
     income = list_income(db, current_user)
     budgets = analyse_budgets(db, current_user)
     goals = list_goals(False, db, current_user)
-    health = financial_health(db, current_user, range_days, True)
+    # The dashboard range selector should not regenerate the entire Insights engine.
+    # Insights are refreshed by their own endpoint/page; this call reuses current state.
+    health = financial_health(db, current_user, range_days, False)
     top_insights = _top_insights(db, current_user)
     overdue = _overdue(bills, start)
     future_events = _future_events(scheduled["events"], start, end)
