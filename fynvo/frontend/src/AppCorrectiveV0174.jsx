@@ -3,7 +3,7 @@ import InsightsPage from './InsightsPage.jsx';
 import logo from './assets/fynvo-logo.svg';
 import mark from './assets/fynvo-mark.svg';
 import { CategoriesPageV0174, RecurringExpensesPageV0174 } from './CorrectiveV0174Pages.jsx';
-import { APP_VERSION_V0174, CashFlowChartV0174, CategorySelect } from './v0174-corrective.js';
+import { APP_VERSION_V0174, CashFlowChartV0174, CategorySelect } from './v0174-corrective.jsx';
 import './styles.css';
 
 const api = (path, options = {}) => fetch(`api${path}`, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options });
