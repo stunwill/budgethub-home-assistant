@@ -1,0 +1,46 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import test from 'node:test';
+
+const pages = await readFile(new URL('../src/CorrectiveV0174Pages.jsx', import.meta.url), 'utf8');
+const app = await readFile(new URL('../src/AppCorrectiveV0174.jsx', import.meta.url), 'utf8');
+const entry = await readFile(new URL('../src/main.jsx', import.meta.url), 'utf8');
+const version = await readFile(new URL('../src/v0174-corrective.jsx', import.meta.url), 'utf8');
+const css = await readFile(new URL('../src/v018.css', import.meta.url), 'utf8');
+
+test('Category management exposes health check and safe merge workflow', () => {
+  assert.match(pages, /Check Category Data/);
+  assert.match(pages, /Merge Category/);
+  assert.match(pages, /\/v018\/categories\/health/);
+  assert.match(pages, /\/v018\/categories\/merge\/preview/);
+  assert.match(pages, /\/v018\/categories\/merge'/);
+  assert.match(pages, /Financial history will not be deleted/);
+});
+
+test('zero-entry category rows do not render repeated entry links', () => {
+  assert.match(pages, /parent\.entry_count > 0/);
+  assert.match(pages, /child\.entry_count > 0/);
+  assert.match(pages, /category-count-empty-v018/);
+});
+
+test('Recurring Expenses exposes non-destructive duplicate review', () => {
+  assert.match(pages, /\/v018\/recurring-expenses\/duplicates/);
+  assert.match(pages, /Nothing has been merged automatically/);
+});
+
+test('Income keeps the v0.17.5 Date Range correction', () => {
+  assert.match(app, /active !== 'Income'/);
+});
+
+test('Overview keeps the redundant seven-day Upcoming card removed', () => {
+  assert.doesNotMatch(app, /PanelHead title="Upcoming" meta="Next 7 days"/);
+  assert.match(app, /PanelHead title="Upcoming Commitments"/);
+});
+
+test('v0.18 responsive overrides load last and version is aligned', () => {
+  assert.match(entry, /'\.\/v018\.css'/);
+  assert.ok(entry.indexOf("'./v018.css'") > entry.indexOf("'./corrective-v0175.css'"));
+  assert.match(version, /0\.18\.0/);
+  assert.match(css, /@media\(max-width:980px\)/);
+  assert.match(css, /@media\(max-width:600px\)/);
+});
