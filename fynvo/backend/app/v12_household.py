@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import secrets
 import string
-from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -341,9 +340,13 @@ def update_member(user_id: int, payload: dict[str, Any], current_user: User = US
     role = str(payload.get("role", row["role"]))
     if role not in ROLES:
         raise HTTPException(status_code=400, detail="Choose a valid Household role")
-    if row["role"] == "administrator" and role != "administrator" and row["status"] == "active":
-        if _active_admin_count(db, context["household_id"]) <= 1:
-            raise HTTPException(status_code=409, detail="The Household must retain at least one active Administrator")
+    if (
+        row["role"] == "administrator"
+        and role != "administrator"
+        and row["status"] == "active"
+        and _active_admin_count(db, context["household_id"]) <= 1
+    ):
+        raise HTTPException(status_code=409, detail="The Household must retain at least one active Administrator")
     display_name = " ".join(str(payload.get("display_name", row["display_name"]) or "").strip().split())
     if not display_name or len(display_name) > 120:
         raise HTTPException(status_code=400, detail="Display name is required")
