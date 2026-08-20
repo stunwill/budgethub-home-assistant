@@ -243,14 +243,19 @@ def edit_recurring(expense_id: int, payload: dict[str, Any], current_user: User 
     effective_from = payload.pop("effective_from", None)
     row = _update_table_record(db, current_user, "recurring_expenses", expense_id, {"name", "frequency", "interval_count", "next_due_date", "direct_debit", "account_id", "source_account_text", "category", "expense_type", "owner_group", "is_active", "variable_amount", "aliases", "notes", "last_paid_date"}, payload, {"amount": "amount_cents"})
     if effective_from and payload.get("amount") not in (None, ""):
-        db.execute(text("INSERT INTO effective_amount_changes (user_id, record_type, record_id, new_amount_cents, effective_from, source, notes, created_at, updated_at) VALUES (:user_id, 'recurring', :record_id, :amount, :effective_from, 'edit', :notes, :now, :now)"), {"user_id": current_user.id, "record_id": expense_id, "amount": parse_money(payload["amount"]), "effective_from": _as_date(effective_from), "notes": payload.get("edit_mode", "Change going forward"), "now": utcnow()})
+        db.execute(text("INSERT INTO effective_amount_changes (user_id, record_type, record_id, new_amount_cents, effective_from, source, notes, created_at, updated_at) VALUES (:user_id, 'recurring_expense', :record_id, :amount, :effective_from, 'edit', :notes, :now, :now)"), {"user_id": current_user.id, "record_id": expense_id, "amount": parse_money(payload["amount"]), "effective_from": _as_date(effective_from), "notes": payload.get("edit_mode", "Change going forward"), "now": utcnow()})
     db.commit()
     return recurring_response(row)
 
 
 @router.put("/bills/{bill_id}")
 def edit_bill(bill_id: int, payload: dict[str, Any], current_user: User = USER, db: DbSession = DB):
-    row = _update_table_record(db, current_user, "bills", bill_id, {"name", "provider", "bill_type", "priority", "due_date", "pay_cycle_date", "account_id", "source_account_text", "paid_through_date", "notes", "is_active", "resolved_at", "paid_at", "recurring_expense_id"}, payload, {"amount": "remaining_amount_cents"})
+    status_value = payload.pop("status", None)
+    row = _update_table_record(db, current_user, "bills", bill_id, {"recurring_expense_id", "name", "provider", "bill_type", "priority", "original_status", "due_date", "pay_cycle_date", "account_id", "source_account_text", "paid_through_date", "notes", "is_active"}, payload, {"amount": "remaining_amount_cents", "original_amount": "original_amount_cents"})
+    if status_value in {"paid", "resolved"}:
+        now = utcnow()
+        db.execute(text("UPDATE bills SET paid_at=:paid, resolved_at=:resolved, remaining_amount_cents=0, updated_at=:now WHERE id=:id AND user_id=:user_id"), {"id": bill_id, "user_id": current_user.id, "paid": now if status_value == "paid" else None, "resolved": now, "now": now})
+        row = _obj(db.execute(text("SELECT * FROM bills WHERE id=:id AND user_id=:user_id"), {"id": bill_id, "user_id": current_user.id}).mappings().first())
     db.commit()
     return bill_response(row)
 
