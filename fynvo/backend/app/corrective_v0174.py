@@ -11,7 +11,7 @@ from .auth import get_current_user
 from .database import get_db
 from .finance import list_recurring, today_local
 from .models import User
-from .money import cents_to_decimal, parse_money
+from .money import cents_to_decimal
 from .v1 import _occurrence_dates, list_categories_v1
 
 router = APIRouter(prefix="/corrective-v0174")
