@@ -4,11 +4,11 @@ import test from 'node:test';
 
 const pages = await readFile(new URL('../src/CorrectiveV0174Pages.jsx', import.meta.url), 'utf8');
 const app = await readFile(new URL('../src/AppCorrectiveV0174.jsx', import.meta.url), 'utf8');
+const wrapper = await readFile(new URL('../src/AppV13.jsx', import.meta.url), 'utf8');
 const entry = await readFile(new URL('../src/main.jsx', import.meta.url), 'utf8');
 const version = await readFile(new URL('../src/v0174-corrective.jsx', import.meta.url), 'utf8');
 const css = await readFile(new URL('../src/v018.css', import.meta.url), 'utf8');
 const correctiveCss = await readFile(new URL('../src/corrective-v0175.css', import.meta.url), 'utf8');
-const pageState = await readFile(new URL('../src/v018-page-state.js', import.meta.url), 'utf8');
 
 test('Category management exposes health check and safe merge workflow', () => {
   assert.match(pages, /Check Category Data/);
@@ -31,9 +31,8 @@ test('Recurring Expenses exposes non-destructive duplicate review', () => {
 });
 
 test('Income keeps the Date Range correction active', () => {
-  assert.match(entry, /'\.\/v018-page-state\.js'/);
-  assert.match(pageState, /fynvo-income-page/);
-  assert.match(pageState, /activeHeading === 'Income'/);
+  assert.match(wrapper, /heading === 'Income'/);
+  assert.match(wrapper, /classList\.toggle\('fynvo-income-page'/);
   assert.match(correctiveCss, /body\.fynvo-income-page \.header-actions > \.select-shell/);
   assert.match(correctiveCss, /display: none/);
 });
