@@ -320,9 +320,9 @@ Delivered scope:
 
 ### v0.18.0 - Financial Data Integrity, Category Management & Workflow Polish
 
-Status: In development.
+Status: Completed and merged.
 
-Planned/implemented scope:
+Delivered scope:
 - authoritative Category-name normalisation across create and edit workflows, including case and repeated-whitespace duplicate prevention;
 - user-supported Category merge preview and merge operations that reassign financial references and archive the source without deleting history;
 - automatic consolidation of same-name child Categories when parent hierarchies are merged;
@@ -347,7 +347,9 @@ Production CDR/provider work remains future scope. v0.18.0 prepares cleaner iden
 
 ### v1.0.0 - Stable Production Release
 
-Planned scope after the v0.18.0 acceptance gates pass:
+Status: In development.
+
+Planned scope:
 - final acceptance QA of functionality already delivered;
 - final v0.18-to-v1 upgrade/migration validation and representative older-data upgrade confirmation;
 - backup and restore validation/documentation;
