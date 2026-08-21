@@ -1,6 +1,6 @@
 """Fynvo application package.
 
-v1.3.0 keeps the proven v0.x/v1.x services in place and layers cash-flow
+v1.4.2 keeps the proven v0.x/v1.x services in place and layers cash-flow
 intelligence, financial calendar and smart forecasting on top of them.
 """
 
