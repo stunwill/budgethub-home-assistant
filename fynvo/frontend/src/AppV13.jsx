@@ -3,6 +3,7 @@ import App from './AppCorrectiveV0174.jsx';
 import HouseholdControlCenter from './HouseholdControlCenter.jsx';
 import LoginPage from './LoginPage.jsx';
 import V11ControlCenter from './V11ControlCenter.jsx';
+import V13CashFlowPage from './V13CashFlowPage.jsx';
 
 const api = (path, options = {}) => fetch(`api${path}`, {
   credentials: 'same-origin',
@@ -14,6 +15,7 @@ export default function AppV13() {
   const [auth, setAuth] = useState(null);
   const [recoveryWarningDismissed, setRecoveryWarningDismissed] = useState(false);
   const [v11Mode, setV11Mode] = useState(null);
+  const [v13CashFlowOpen, setV13CashFlowOpen] = useState(false);
   const [householdOpen, setHouseholdOpen] = useState(false);
   const [householdSecurity, setHouseholdSecurity] = useState(null);
   const observerRef = useRef(null);
@@ -100,6 +102,10 @@ export default function AppV13() {
     return <HouseholdControlCenter onClose={() => setHouseholdOpen(false)}/>;
   }
 
+  if (v13CashFlowOpen) {
+    return <V13CashFlowPage onClose={() => setV13CashFlowOpen(false)}/>;
+  }
+
   if (v11Mode) {
     return <V11ControlCenter mode={v11Mode} onClose={() => setV11Mode(null)}/>;
   }
@@ -112,7 +118,8 @@ export default function AppV13() {
       </div>
     )}
     <App />
-    <nav className="v11-launcher" aria-label="Fynvo data, security and household tools">
+    <nav className="v11-launcher" aria-label="Fynvo data, security, household and cash-flow tools">
+      <button type="button" onClick={() => setV13CashFlowOpen(true)}>Cash Flow Intelligence</button>
       <button type="button" onClick={() => setHouseholdOpen(true)}>Household</button>
       <button type="button" onClick={() => setV11Mode('coverage')}>Data Coverage</button>
       <button type="button" onClick={() => setV11Mode('splits')}>Split Transaction</button>
