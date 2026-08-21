@@ -1,4 +1,4 @@
-export const APP_VERSION_V0174 = '1.1.0';
+export const APP_VERSION_V0174 = '1.4.0';
 
 export function categoryGroups(categories = []) {
   const rows = categories.filter((item) => item && item.is_active !== false && (!item.category_type || item.category_type === 'expense'));
@@ -22,19 +22,38 @@ export function CategorySelect({ categories = [], value = '', onChange }) {
   </select>;
 }
 
-export function CashFlowChartV0174({ baseline, expected, money, dateLabel, Empty }) {
+const compactCurrency = (value) => {
+  const number = Number(value || 0);
+  const absolute = Math.abs(number);
+  if (absolute >= 10000) return `${number < 0 ? '-' : ''}$${Math.round(absolute / 1000)}k`;
+  return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(number);
+};
+
+const niceStep = (span) => {
+  const rough = Math.max(span / 4, 1);
+  const magnitude = 10 ** Math.floor(Math.log10(rough));
+  const normalized = rough / magnitude;
+  const factor = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+  return factor * magnitude;
+};
+
+export function CashFlowChartV0174({ baseline, expected, dateLabel, Empty }) {
   const points = baseline?.chart_points || [];
   const expectedPoints = expected?.chart_points || [];
   const all = [...points, ...expectedPoints];
   if (!all.length) return <Empty title="No forecast yet">Add income, recurring expenses, bills or planned spending to generate a forecast.</Empty>;
+
   const values = all.map((point) => Number(point.balance || 0));
-  const min = Math.min(...values, 0);
-  const max = Math.max(...values, 1);
-  const span = Math.max(max - min, 1);
-  const padLeft = 18;
+  const rawMin = Math.min(...values, 0);
+  const rawMax = Math.max(...values, 0);
+  const step = niceStep(Math.max(rawMax - rawMin, 1));
+  const min = Math.floor(rawMin / step) * step;
+  const max = Math.ceil(rawMax / step) * step || step;
+  const span = Math.max(max - min, step);
+  const padLeft = 22;
   const padRight = 4;
   const padTop = 6;
-  const padBottom = 16;
+  const padBottom = 17;
   const plotWidth = 100 - padLeft - padRight;
   const plotHeight = 100 - padTop - padBottom;
   const line = (rows) => rows.map((point, index) => {
@@ -42,14 +61,16 @@ export function CashFlowChartV0174({ baseline, expected, money, dateLabel, Empty
     const y = padTop + plotHeight - ((Number(point.balance || 0) - min) / span) * plotHeight;
     return `${x},${y}`;
   }).join(' ');
-  const yTicks = [max, min + span / 2, min];
+  const yTicks = Array.from({ length: 5 }, (_, index) => max - (span * index / 4));
   const dateRows = points.length ? points : expectedPoints;
-  const indexes = [...new Set([0, Math.floor((dateRows.length - 1) / 2), Math.max(dateRows.length - 1, 0)])];
-  return <div className="chart-wrap chart-with-axes" role="img" aria-label="Cash flow forecast chart with balance and date axes">
+  const tickCount = Math.min(5, dateRows.length);
+  const indexes = [...new Set(Array.from({ length: tickCount }, (_, index) => Math.round(index * (dateRows.length - 1) / Math.max(tickCount - 1, 1))))];
+
+  return <div className="chart-wrap chart-with-axes" role="img" aria-label="Cash flow forecast chart with readable balance and date axes">
     <svg viewBox="0 0 100 100" preserveAspectRatio="none">
       {yTicks.map((tick, index) => {
-        const y = padTop + (index / 2) * plotHeight;
-        return <g key={`y-${index}`}><line x1={padLeft} y1={y} x2={100 - padRight} y2={y}/><text className="axis-label axis-y" x={padLeft - 1} y={y + 1.5} textAnchor="end">{money(tick)?.replace('.00', '')}</text></g>;
+        const y = padTop + (index / 4) * plotHeight;
+        return <g key={`y-${index}`}><line x1={padLeft} y1={y} x2={100 - padRight} y2={y}/><text className="axis-label axis-y" x={padLeft - 1.5} y={y + 1.5} textAnchor="end">{compactCurrency(tick)}</text></g>;
       })}
       {indexes.map((index) => {
         const x = padLeft + (index / Math.max(dateRows.length - 1, 1)) * plotWidth;
