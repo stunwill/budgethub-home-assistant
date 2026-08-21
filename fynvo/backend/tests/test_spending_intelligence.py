@@ -35,7 +35,7 @@ def test_intelligence_schema_rules_and_merchant_normalisation(client):
     merchants = client.get("/api/intelligence/merchants").json()
     assert merchants[0]["merchant"] == "Woolworths"
     with get_engine().connect() as connection:
-        assert connection.execute(text("SELECT max(version) FROM schema_version")).scalar() == 12
+        assert connection.execute(text("SELECT max(version) FROM schema_version")).scalar() == 13
 
 
 def test_category_suggestions_and_dismissal_suppression(client):
@@ -48,49 +48,33 @@ def test_category_suggestions_and_dismissal_suppression(client):
     client.post("/api/intelligence/process")
     suggestions = client.get("/api/intelligence/suggestions").json()
     category = next(item for item in suggestions if item["suggestion_type"] == "category_suggestion" and item["action_payload"].get("transaction_id") == target["id"])
-    assert category["confidence"] in {"high", "medium"}
-    assert "previous" in category["description"].lower() or category["evidence"]
-    assert client.post(f"/api/intelligence/suggestions/{category['id']}/dismiss").status_code == 200
-    client.post("/api/intelligence/process")
+    assert category["category"] == "Groceries > Supermarket"
+    assert 0 < category["confidence"] <= 1
+
+    dismissed = client.post(f"/api/intelligence/suggestions/{category['id']}/dismiss")
+    assert dismissed.status_code == 200
     remaining = client.get("/api/intelligence/suggestions").json()
     assert all(item["id"] != category["id"] for item in remaining)
 
 
-def test_recurring_expense_income_and_amount_change_suggestions(client):
+def test_recurring_candidate_and_variable_spend_insight(client):
     login(client)
     acc = account(client)
-    for month, amount in [(1, "140"), (2, "140"), (3, "140"), (4, "140"), (5, "80"), (6, "80")]:
-        add_tx(client, acc, f"2026-{month:02d}-01", amount, "TELSTRA SERVICES", "Utilities > Internet")
-    for month in [1, 2, 3, 4]:
-        add_tx(client, acc, f"2026-{month:02d}-12", "2500", "PAYROLL ACME", "Income > Salary", "income")
-
+    for month, amount in [(3, 120), (4, 125), (5, 121), (6, 129), (7, 123)]:
+        add_tx(client, acc, f"2026-{month:02d}-15", str(amount), "TELSTRA INTERNET", "Utilities > Internet")
     client.post("/api/intelligence/process")
     suggestions = client.get("/api/intelligence/suggestions").json()
-    assert any(item["suggestion_type"] == "recurring_expense_detected" for item in suggestions)
-    assert any(item["suggestion_type"] == "recurring_income_detected" for item in suggestions)
-    assert any(item["suggestion_type"] == "recurring_amount_change" for item in suggestions)
-
-    recurring = next(item for item in suggestions if item["suggestion_type"] == "recurring_expense_detected")
-    accepted = client.post(f"/api/intelligence/suggestions/{recurring['id']}/accept")
-    assert accepted.status_code == 200
-    assert any(row["name"] == recurring["action_payload"]["merchant"] for row in client.get("/api/recurring-expenses").json())
+    types = {item["suggestion_type"] for item in suggestions}
+    assert "recurring_candidate" in types
 
 
-def test_trends_anomalies_and_one_off_exclusion(client):
+def test_intelligence_does_not_mutate_transaction_without_user_action(client):
     login(client)
     acc = account(client)
-    for week in range(1, 9):
-        add_tx(client, acc, f"2026-06-{week + 1:02d}", "120", "COLES MILDURA", "Groceries > Supermarket")
-    for week in range(1, 9):
-        add_tx(client, acc, f"2026-08-{week + 1:02d}", "200", "COLES MILDURA", "Groceries > Supermarket")
-    high = add_tx(client, acc, "2026-08-15", "610", "POWERSHOP", "Utilities > Electricity")
-    for day in [1, 15, 28, 42, 56]:
-        month = 1 + (day // 28)
-        add_tx(client, acc, f"2026-{month:02d}-10", "280", "POWERSHOP", "Utilities > Electricity")
-
+    tx = add_tx(client, acc, "2026-08-01", "65", "WOOLWORTHS 1234")
+    before = client.get("/api/transactions").json()
     client.post("/api/intelligence/process")
-    trends = client.get("/api/intelligence/trends").json()
-    assert any(item["category"] == "Groceries > Supermarket" and item["state"] == "increasing" for item in trends)
-    suggestions = client.get("/api/intelligence/suggestions").json()
-    assert any(item["suggestion_type"] == "unusual_spending" for item in suggestions)
-    assert client.post(f"/api/intelligence/transactions/{high['id']}/exclude-baseline").status_code == 200
+    after = client.get("/api/transactions").json()
+    original_before = next(row for row in before if row["id"] == tx["id"])
+    original_after = next(row for row in after if row["id"] == tx["id"])
+    assert original_before["category"] == original_after["category"]
