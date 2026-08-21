@@ -7,7 +7,7 @@ def test_database_migration_records_schema_version(client):
     with get_engine().connect() as connection:
         version = connection.execute(text("SELECT version FROM schema_version ORDER BY version DESC LIMIT 1")).scalar()
         tables = connection.execute(text("SELECT name FROM sqlite_master WHERE type = 'table'")).scalars().all()
-    assert version == 12
+    assert version == 13
     assert "income_sources" in tables
     assert "recurring_expenses" in tables
     assert "bills" in tables
@@ -27,3 +27,4 @@ def test_database_migration_records_schema_version(client):
     assert "households" in tables
     assert "household_memberships" in tables
     assert "record_ownership" in tables
+    assert "forecast_occurrence_overrides" in tables
