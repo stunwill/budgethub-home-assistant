@@ -1,8 +1,7 @@
 """Fynvo application package.
 
-v1.1.0 keeps the proven v0.x/v1.0 services in place and layers post-v1
-financial data coverage, transaction splitting, stronger authentication and
-portability foundations on top of them.
+v1.3.0 keeps the proven v0.x/v1.x services in place and layers cash-flow
+intelligence, financial calendar and smart forecasting on top of them.
 """
 
 from contextvars import ContextVar
@@ -171,11 +170,6 @@ v1._recurring_response = _recurring_response_v0174
 finance.create_recurring = v1.create_recurring_v1
 finance.recurring_response = v1.recurring_response
 
-# Reference-data seeding assigns authoritative Category IDs to legacy rows. That
-# migration must not also rewrite existing plain category labels such as
-# "Groceries" into hierarchical display paths, because the forecast and Insights
-# engines intentionally use those established labels for historical grouping.
-# Explicit Category rename/move operations still synchronise denormalised labels.
 _reference_seed_sync_suppressed: ContextVar[bool] = ContextVar(
     "fynvo_reference_seed_sync_suppressed",
     default=False,
@@ -211,11 +205,7 @@ def _ensure_seed_data_v1(db, user) -> None:
 
 finance.ensure_seed_data = _ensure_seed_data_v1
 
-# The v1 schedule implementation is authoritative, but annual/monthly schedule
-# endpoints must still honour the established household seed contract. Without
-# this wrapper a fresh account could have recurring/bill seed data available via
-# the recurring endpoint but missing from the annual matrix until another page
-# happened to initialise it first.
+
 def _schedule_events_v1_seeded(db, user, start, end):
     _ensure_seed_data_v1(db, user)
     return v1.schedule_events_v1(db, user, start, end)
@@ -223,10 +213,6 @@ def _schedule_events_v1_seeded(db, user, start, end):
 
 finance.schedule_events = _schedule_events_v1_seeded
 
-# Seed reference data only when Category-backed APIs actually need it. This keeps
-# low-level legacy tests and direct service consumers free to create their own
-# isolated category trees while the installed application still gets the v1
-# defaults on first use.
 _legacy_list_categories_v1 = v1.list_categories_v1
 
 
@@ -241,8 +227,6 @@ def _list_categories_v1_seeded(db, user):
 v1.list_categories_v1 = _list_categories_v1_seeded
 budget.list_categories = _list_categories_v1_seeded
 
-# v0.18 strengthens duplicate prevention beyond SQL lower(name) comparisons by
-# applying the same whitespace/case normalisation to create and update workflows.
 _legacy_create_category_v1 = v1.create_category_v1
 _legacy_update_category_v1 = v1.update_category_v1
 
@@ -284,10 +268,6 @@ v1.update_category_v1 = _update_category_v018
 budget.create_category = _create_category_v018
 budget.update_category = _update_category_v018
 
-# Preserve the v0.x household recurring/bill seed as part of the existing API
-# contract. The v1 recurring list remains authoritative after the legacy seed is
-# ensured, so existing installs and regression fixtures continue to see their
-# established records.
 _legacy_list_recurring_v1 = v1.list_recurring_v1
 
 
@@ -300,7 +280,6 @@ v1.list_recurring_v1 = _list_recurring_v1_seeded
 finance.list_recurring = _list_recurring_v1_seeded
 forecast._recurring_events = v1.forecast_recurring_events_v1
 
-# Replace the old cost helper route with the stable acceptance response shape.
 v1.router.routes = [
     route
     for route in v1.router.routes
@@ -377,8 +356,6 @@ v1.router.add_api_route(
     methods=["GET"],
 )
 
-# Import route modules only after the compatibility patches above. v09 binds
-# category and recurring helpers at import time.
 from . import (
     auth_v15,
     banking_v12,
@@ -390,11 +367,9 @@ from . import (
     scenarios,
     v09,
     v11,
+    v13_cashflow,
 )
 
-# Replace legacy routes whose implementations are superseded by authoritative
-# v1 behaviour. Keep the existing URLs so bookmarks and integrations continue
-# to work across the stable upgrade.
 v09.router.routes = [
     route
     for route in v09.router.routes
@@ -417,3 +392,14 @@ v09.router.include_router(insights_v14.router)
 v09.router.include_router(corrective_v0174.router)
 v09.router.include_router(v018.router)
 v09.router.include_router(v11.router)
+v09.router.include_router(v13_cashflow.router)
+
+_legacy_run_migrations_v12_plus = database.run_migrations
+
+
+def _run_migrations_v13() -> None:
+    _legacy_run_migrations_v12_plus()
+    v13_cashflow.run_v13_migrations(database.get_engine())
+
+
+database.run_migrations = _run_migrations_v13

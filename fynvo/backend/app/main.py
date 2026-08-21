@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session as DbSession
 
-from . import intelligence, v09, v12_mount
+from . import intelligence, v09, v12_mount, v13_cashflow
 from .auth import (
     SESSION_COOKIE,
     authenticate_user,
@@ -101,6 +101,7 @@ app.add_middleware(CORSMiddleware, allow_origins=[], allow_credentials=True, all
 app.include_router(v09.router)
 app.include_router(intelligence.router)
 app.include_router(v12_mount.router, prefix="/api")
+app.include_router(v13_cashflow.router)
 
 
 def public_user(user: User) -> UserResponse:

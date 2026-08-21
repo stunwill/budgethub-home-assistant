@@ -25,7 +25,7 @@ def _create_member(client, username="kristy", role="household_member"):
     return response.json()
 
 
-def test_setup_admin_gets_initial_household_membership_and_schema_12(client):
+def test_setup_admin_gets_initial_household_membership_and_schema_13(client):
     _setup_admin(client)
     household = client.get("/api/household/current")
     assert household.status_code == 200
@@ -35,7 +35,7 @@ def test_setup_admin_gets_initial_household_membership_and_schema_12(client):
     assert payload["currency"] == "AUD"
 
     with get_engine().connect() as connection:
-        assert connection.execute(text("SELECT MAX(version) FROM schema_version")).scalar() == 12
+        assert connection.execute(text("SELECT MAX(version) FROM schema_version")).scalar() == 13
         membership = connection.execute(text("""
             SELECT hm.role, hm.status, u.username
             FROM household_memberships hm JOIN users u ON u.id=hm.user_id

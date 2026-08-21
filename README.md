@@ -1,23 +1,29 @@
 # Fynvo
 
-**Fynvo** is a Home Assistant add-on for household cash-flow forecasting, accounts, transactions, recurring expenses, planned spending and future financial insight.
+**Fynvo** is a Home Assistant add-on for household budgeting, accounts, transactions, recurring expenses, planned spending and explainable cash-flow forecasting.
 
 > Know what's coming.
 
 ## Current release
 
-Current development target: **v0.3.0 Accounts & Transactions**.
+Current development target: **v1.3.0 Cash Flow Intelligence, Financial Calendar & Smart Forecasting**.
 
-v0.3.0 adds the core financial ledger:
+v1.3.0 builds on the production v1.x foundations with:
 
-- accounts;
-- opening balances;
-- calculated balances;
-- manual income and expense transactions;
-- account-to-account transfers;
-- running balances;
-- dashboard financial position using real account data;
-- release changelog requirements.
+- household and per-account projected balances;
+- forecast periods from 7 days to 12 months;
+- account safety buffers and low-balance warnings;
+- negative-balance shortfall warnings;
+- overdue obligations retained in forecasts until resolved;
+- occurrence-level amount, status and reschedule overrides;
+- internal transfer handling with zero household net effect;
+- financial calendar daily income, expense and net totals;
+- grouped upcoming money views;
+- isolated future-purchase affordability simulation;
+- mobile-responsive cash-flow views;
+- deterministic backend forecast logic with regression coverage.
+
+Forecast values are projections based on the financial information recorded in Fynvo. They are not confirmed bank balances or guarantees of future outcomes.
 
 ## Architecture
 
@@ -33,7 +39,18 @@ The financial domain is intentionally kept separate from Home Assistant deployme
 
 Fynvo requires authentication before access to financial information.
 
-On first run, create the initial administrator account through the Fynvo setup screen. Fynvo stores salted PBKDF2 password hashes and server-side sessions in SQLite.
+On first run, create the initial administrator account through the Fynvo setup screen. Fynvo stores salted password hashes and server-side sessions in SQLite. v1.2.0 added the Household identity and membership foundation used by later releases.
+
+## Cash Flow Intelligence
+
+Open **Cash Flow Intelligence** from the authenticated Fynvo shell to access:
+
+- **Cash Flow**, projected household balances, account warnings, safety buffers and forecast breakdowns;
+- **Calendar**, daily income, expense and net movement;
+- **Upcoming**, grouped overdue and future financial events;
+- **Can I afford this?**, an isolated future-purchase simulation that does not modify real financial records.
+
+The v1.3 forecast API is available under `/api/v1.3/` and reuses the established Fynvo forecast, recurring expense, planned spending, bill, account and transfer foundations.
 
 ## Home Assistant installation
 
@@ -47,7 +64,7 @@ Then install and open the **Fynvo** add-on.
 
 ## Changelog and releases
 
-Starting with v0.3.0, every release must include:
+Every release must include:
 
 - `CHANGELOG.md` entry;
 - Home Assistant-visible release notes;
