@@ -1,7 +1,10 @@
 from fastapi import APIRouter
 
-from . import v12_extra as extra
+# Import household migrations before v12_extra so the wrapper chain executes
+# the base migrations first, then creates the v1.2 household tables, and only
+# then applies the dependent v1.2 supplemental migrations.
 from . import v12_household as household
+from . import v12_extra as extra
 
 router = APIRouter(prefix="/household", tags=["household"])
 router.add_api_route("/current", household.current_household, methods=["GET"])
