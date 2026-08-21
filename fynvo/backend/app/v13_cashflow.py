@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from .auth import get_current_user
 from .database import get_db
-from .finance import add_period, today_local
+from .finance import today_local
 from .forecast import generate_forecast
 from .models import User
 from .money import cents_to_decimal, parse_money
@@ -43,10 +43,6 @@ class PurchaseSimulation(BaseModel):
     account_id: int
     description: str | None = None
     horizon: str = "30d"
-
-
-def _table_columns(db: DbSession, table: str) -> set[str]:
-    return {str(row["name"]) for row in db.execute(text(f"PRAGMA table_info({table})")).mappings()}
 
 
 def run_v13_migrations(engine) -> None:
@@ -90,15 +86,14 @@ def _account_rows(db: DbSession, user: User) -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
-def _account_starting_balances(db: DbSession, user: User) -> dict[int, int]:
+def _account_starting_balances(db: DbSession, user: User, start: date) -> dict[int, int]:
     balances = {int(row["id"]): int(row["opening_balance_cents"] or 0) for row in _account_rows(db, user)}
     rows = db.execute(text("""
-        SELECT account_id,
-               COALESCE(SUM(CASE WHEN transaction_type='income' THEN amount_cents ELSE -amount_cents END), 0) AS total
+        SELECT account_id, COALESCE(SUM(amount_cents), 0) AS total
         FROM transactions
-        WHERE user_id=:uid
+        WHERE user_id=:uid AND transaction_date < :start
         GROUP BY account_id
-    """), {"uid": user.id}).mappings().all()
+    """), {"uid": user.id, "start": start}).mappings().all()
     for row in rows:
         balances[int(row["account_id"])] = balances.get(int(row["account_id"]), 0) + int(row["total"] or 0)
     return balances
@@ -124,10 +119,11 @@ def _apply_overrides(events: list[dict], overrides: list[dict]) -> list[dict]:
         if source_id is None:
             result.append(event)
             continue
-        key = (event.get("source_type"), int(source_id), str(event["date"])[:10])
+        occurrence_key = str(event.get("original_due_date") or event["date"])[:10]
+        key = (event.get("source_type"), int(source_id), occurrence_key)
         override = exact.get(key)
         if override is None:
-            eligible = [row for row in future.get((event.get("source_type"), int(source_id)), []) if str(row["occurrence_date"])[:10] <= str(event["date"])[:10]]
+            eligible = [row for row in future.get((event.get("source_type"), int(source_id)), []) if str(row["occurrence_date"])[:10] <= occurrence_key]
             override = eligible[-1] if eligible else None
         if not override:
             result.append(event)
@@ -137,10 +133,7 @@ def _apply_overrides(events: list[dict], overrides: list[dict]) -> list[dict]:
         updated = dict(event)
         if override.get("amount_cents") is not None:
             cents = int(override["amount_cents"])
-            if updated["direction"] == "expense":
-                cents = -abs(cents)
-            else:
-                cents = abs(cents)
+            cents = -abs(cents) if updated["direction"] == "expense" else abs(cents)
             updated["amount_cents"] = cents
             updated["amount"] = cents_to_decimal(cents)
             updated["estimated"] = False
@@ -192,28 +185,25 @@ def _future_transfers(db: DbSession, user: User, start: date, end: date) -> list
         WHERE user_id=:uid AND transaction_date BETWEEN :start AND :end
         ORDER BY transaction_date, id
     """), {"uid": user.id, "start": start, "end": end}).mappings().all()
-    return [
-        {
-            "date": str(row["transaction_date"])[:10],
-            "name": row["description"],
-            "amount_cents": 0,
-            "amount": "0.00",
-            "transfer_amount_cents": int(row["amount_cents"]),
-            "direction": "transfer",
-            "source_type": "transfer",
-            "source_id": int(row["id"]),
-            "from_account_id": int(row["from_account_id"]),
-            "to_account_id": int(row["to_account_id"]),
-            "confidence": "confirmed",
-            "financial_layer": "committed",
-            "estimated": False,
-            "explanation": "Internal transfer; household net cash-flow effect is zero",
-        }
-        for row in rows
-    ]
+    return [{
+        "date": str(row["transaction_date"])[:10],
+        "name": row["description"],
+        "amount_cents": 0,
+        "amount": "0.00",
+        "transfer_amount_cents": int(row["amount_cents"]),
+        "direction": "transfer",
+        "source_type": "transfer",
+        "source_id": int(row["id"]),
+        "from_account_id": int(row["from_account_id"]),
+        "to_account_id": int(row["to_account_id"]),
+        "confidence": "confirmed",
+        "financial_layer": "committed",
+        "estimated": False,
+        "explanation": "Internal transfer; household net cash-flow effect is zero",
+    } for row in rows]
 
 
-def _recalculate(events: list[dict], starting_balance: int, account_balances: dict[int, int]) -> tuple[list[dict], dict[str, Any]]:
+def _recalculate(events: list[dict], starting_balance: int, account_balances: dict[int, int]) -> tuple[list[dict], dict[str, Any], int, dict[int, int]]:
     balance = starting_balance
     by_account = dict(account_balances)
     timeline = []
@@ -236,26 +226,23 @@ def _recalculate(events: list[dict], starting_balance: int, account_balances: di
         timeline.append(row)
         if balance < lowest["balance_cents"]:
             lowest = {"date": row["date"], "balance_cents": balance, "balance": cents_to_decimal(balance), "source": row["name"]}
-    return timeline, lowest
+    return timeline, lowest, balance, by_account
 
 
 def cashflow_projection(db: DbSession, user: User, horizon: str = "30d", mode: str = "expected", start: date | None = None) -> dict:
     base = generate_forecast(db, user, horizon, mode, start)
     start_date = date.fromisoformat(base["start_date"])
     end_date = date.fromisoformat(base["end_date"])
-    account_balances = _account_starting_balances(db, user)
-    events = list(base["events"])
+    account_balances = _account_starting_balances(db, user, start_date)
+    events = [row for row in base["events"] if row.get("source_type") != "transfer"]
     existing_bill_ids = {int(row["source_id"]) for row in events if row.get("source_type") == "bill" and row.get("source_id") is not None}
     events += [row for row in _overdue_bill_events(db, user, start_date) if int(row["source_id"]) not in existing_bill_ids]
     events += _future_transfers(db, user, start_date, end_date)
     events = _apply_overrides(events, _overrides(db, user))
-    timeline, lowest = _recalculate(events, sum(account_balances.values()), account_balances)
+    timeline, lowest, final_balance, final_balances = _recalculate(events, sum(account_balances.values()), account_balances)
 
     accounts = _account_rows(db, user)
     warnings = []
-    final_balances = dict(account_balances)
-    for event in timeline:
-        final_balances = {int(k): parse_money(v) for k, v in event.get("account_balances", {}).items()}
     for account in accounts:
         account_id = int(account["id"])
         buffer_cents = account.get("minimum_balance_cents")
@@ -284,11 +271,11 @@ def cashflow_projection(db: DbSession, user: User, horizon: str = "30d", mode: s
 
     income = sum(int(row["amount_cents"]) for row in timeline if row["direction"] == "income")
     expenses = -sum(int(row["amount_cents"]) for row in timeline if row["direction"] == "expense")
-    final_balance = sum(final_balances.values()) if timeline else sum(account_balances.values())
     return {
         **base,
         "starting_balance": cents_to_decimal(sum(account_balances.values())),
         "final_balance": cents_to_decimal(final_balance),
+        "net_movement": cents_to_decimal(final_balance - sum(account_balances.values())),
         "income_total": cents_to_decimal(income),
         "expense_total": cents_to_decimal(expenses),
         "lowest_balance": lowest,
