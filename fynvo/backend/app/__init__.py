@@ -1,6 +1,6 @@
 """Fynvo application package.
 
-v1.3.0 keeps the proven v0.x/v1.x services in place and layers cash-flow
+v1.4.2 keeps the proven v0.x/v1.x services in place and layers cash-flow
 intelligence, financial calendar and smart forecasting on top of them.
 """
 
@@ -83,9 +83,6 @@ def _run_migrations_v1() -> None:
 
 database.run_migrations = _run_migrations_v1
 
-# Keep the canonical v1 seed contract intact. The v0.17.4 Categories corrective
-# view consolidates these two overlapping Housing children safely at presentation
-# time, but reference-data seeding remains backwards-compatible and idempotent.
 v1.CATEGORY_SEED["Housing"] = [
     "Mortgage",
     "Rent",
@@ -96,13 +93,7 @@ v1.CATEGORY_SEED["Housing"] = [
     "Security",
 ]
 
-# Main imports these names after package initialisation, so patching the existing
-# modules avoids a broad route/API rewrite while making v1 behaviour authoritative.
 schemas.RecurringExpenseCreate = v1.RecurringExpenseCreateV1
-
-# v1 recurring responses expose the stable acceptance contract used by both the
-# existing API and the v0.17.4 UI. Keep detailed missing-field evidence while
-# returning the established high-level completeness state.
 _legacy_get_card = v1._get_card
 
 
@@ -134,19 +125,13 @@ def _calculated_cost_v0174(amount, frequency, interval_count=None):
 
 def _recurring_response_v0174(db, user, row):
     result = _legacy_recurring_response_v1(db, user, row)
-    required_missing = [
-        field
-        for field in result.get("missing_fields", [])
-        if field in {"amount", "frequency", "next_due_date", "account", "card"}
-    ]
+    required_missing = [field for field in result.get("missing_fields", []) if field in {"amount", "frequency", "next_due_date", "account", "card"}]
     if not result.get("is_active"):
         result["completeness"] = "inactive_incomplete" if required_missing else "inactive"
     else:
         result["completeness"] = "incomplete" if required_missing else "complete"
     result["missing_fields"] = required_missing
-    result["calculated_cost"] = _calculated_cost_v0174(
-        result.get("amount"), result.get("frequency"), result.get("interval_count")
-    )
+    result["calculated_cost"] = _calculated_cost_v0174(result.get("amount"), result.get("frequency"), result.get("interval_count"))
     result["derived_account_id"] = result.get("account_id")
     result["derived_account_name"] = result.get("account_name")
     if result.get("card_id"):
@@ -170,10 +155,7 @@ v1._recurring_response = _recurring_response_v0174
 finance.create_recurring = v1.create_recurring_v1
 finance.recurring_response = v1.recurring_response
 
-_reference_seed_sync_suppressed: ContextVar[bool] = ContextVar(
-    "fynvo_reference_seed_sync_suppressed",
-    default=False,
-)
+_reference_seed_sync_suppressed: ContextVar[bool] = ContextVar("fynvo_reference_seed_sync_suppressed", default=False)
 _legacy_sync_category_denormalized_values = v1._sync_category_denormalized_values
 _legacy_ensure_reference_data = v1.ensure_reference_data
 
@@ -194,7 +176,6 @@ def _ensure_reference_data_v1(db, user) -> None:
 
 v1._sync_category_denormalized_values = _sync_category_denormalized_values_v1
 v1.ensure_reference_data = _ensure_reference_data_v1
-
 _legacy_ensure_seed_data = finance.ensure_seed_data
 
 
@@ -212,7 +193,6 @@ def _schedule_events_v1_seeded(db, user, start, end):
 
 
 finance.schedule_events = _schedule_events_v1_seeded
-
 _legacy_list_categories_v1 = v1.list_categories_v1
 
 
@@ -226,7 +206,6 @@ def _list_categories_v1_seeded(db, user):
 
 v1.list_categories_v1 = _list_categories_v1_seeded
 budget.list_categories = _list_categories_v1_seeded
-
 _legacy_create_category_v1 = v1.create_category_v1
 _legacy_update_category_v1 = v1.update_category_v1
 
@@ -247,10 +226,7 @@ def _create_category_v018(db, user, payload):
 
 
 def _update_category_v018(db, user, category_id, payload):
-    existing = db.execute(
-        text("SELECT name,parent_id FROM categories WHERE id=:id AND user_id=:uid"),
-        {"id": category_id, "uid": user.id},
-    ).mappings().first()
+    existing = db.execute(text("SELECT name,parent_id FROM categories WHERE id=:id AND user_id=:uid"), {"id": category_id, "uid": user.id}).mappings().first()
     if not existing:
         raise HTTPException(status_code=404, detail="Category not found")
     values = dict(payload)
@@ -267,7 +243,6 @@ v1.create_category_v1 = _create_category_v018
 v1.update_category_v1 = _update_category_v018
 budget.create_category = _create_category_v018
 budget.update_category = _update_category_v018
-
 _legacy_list_recurring_v1 = v1.list_recurring_v1
 
 
@@ -279,69 +254,35 @@ def _list_recurring_v1_seeded(db, user, filter_value="all"):
 v1.list_recurring_v1 = _list_recurring_v1_seeded
 finance.list_recurring = _list_recurring_v1_seeded
 forecast._recurring_events = v1.forecast_recurring_events_v1
-
-v1.router.routes = [
-    route
-    for route in v1.router.routes
-    if getattr(route, "path", None) != "/recurring-expenses/cost"
-]
+v1.router.routes = [route for route in v1.router.routes if getattr(route, "path", None) != "/recurring-expenses/cost"]
 
 
-def _recurring_cost_endpoint_v0174(
-    amount: str,
-    frequency: str,
-    interval_count: int | None = None,
-    current_user=USER_DEPENDENCY,
-):
+def _recurring_cost_endpoint_v0174(amount: str, frequency: str, interval_count: int | None = None, current_user=USER_DEPENDENCY):
     del current_user
     if frequency not in v1.SUPPORTED_FREQUENCIES:
         raise HTTPException(status_code=400, detail="Unsupported recurrence frequency")
     return _calculated_cost_v0174(amount, frequency, interval_count)
 
 
-v1.router.add_api_route(
-    "/recurring-expenses/cost",
-    _recurring_cost_endpoint_v0174,
-    methods=["GET"],
-)
+v1.router.add_api_route("/recurring-expenses/cost", _recurring_cost_endpoint_v0174, methods=["GET"])
 
 
-def _data_integrity_v0174(
-    current_user=USER_DEPENDENCY,
-    db=DB_DEPENDENCY,
-):
+def _data_integrity_v0174(current_user=USER_DEPENDENCY, db=DB_DEPENDENCY):
     schema_version = db.execute(text("SELECT MAX(version) FROM schema_version")).scalar() or 0
-    orphan_cards = db.execute(
-        text(
-            """
-            SELECT COUNT(*)
-            FROM cards c
-            LEFT JOIN accounts a ON a.id=c.account_id AND a.user_id=c.user_id
-            WHERE c.user_id=:uid AND a.id IS NULL
-            """
-        ),
-        {"uid": current_user.id},
-    ).scalar() or 0
+    orphan_cards = db.execute(text("""
+        SELECT COUNT(*)
+        FROM cards c
+        LEFT JOIN accounts a ON a.id=c.account_id AND a.user_id=c.user_id
+        WHERE c.user_id=:uid AND a.id IS NULL
+    """), {"uid": current_user.id}).scalar() or 0
     orphan_category_references = 0
-    for table_name in (
-        "transactions",
-        "income_sources",
-        "recurring_expenses",
-        "bills",
-        "planned_spending",
-        "budgets",
-    ):
-        orphan_category_references += db.execute(
-            text(
-                f"""
-                SELECT COUNT(*)
-                FROM {table_name} r
-                LEFT JOIN categories c ON c.id=r.category_id AND c.user_id=r.user_id
-                WHERE r.user_id=:uid AND r.category_id IS NOT NULL AND c.id IS NULL
-                """
-            ),
-            {"uid": current_user.id},
-        ).scalar() or 0
+    for table_name in ("transactions", "income_sources", "recurring_expenses", "bills", "planned_spending", "budgets"):
+        orphan_category_references += db.execute(text(f"""
+            SELECT COUNT(*)
+            FROM {table_name} r
+            LEFT JOIN categories c ON c.id=r.category_id AND c.user_id=r.user_id
+            WHERE r.user_id=:uid AND r.category_id IS NOT NULL AND c.id IS NULL
+        """), {"uid": current_user.id}).scalar() or 0
     return {
         "schema_version": int(schema_version),
         "orphan_cards": int(orphan_cards),
@@ -350,11 +291,7 @@ def _data_integrity_v0174(
     }
 
 
-v1.router.add_api_route(
-    "/v1/acceptance/data-integrity",
-    _data_integrity_v0174,
-    methods=["GET"],
-)
+v1.router.add_api_route("/v1/acceptance/data-integrity", _data_integrity_v0174, methods=["GET"])
 
 from . import (
     auth_v15,
@@ -375,10 +312,7 @@ v09.router.routes = [
     for route in v09.router.routes
     if not (
         getattr(route, "path", None) == "/api/budgets/analysis"
-        or (
-            getattr(route, "path", None) == "/api/recurring-expenses/{expense_id}"
-            and "PUT" in getattr(route, "methods", set())
-        )
+        or (getattr(route, "path", None) == "/api/recurring-expenses/{expense_id}" and "PUT" in getattr(route, "methods", set()))
     )
 ]
 v09.router.include_router(budget_v14.router)
@@ -403,3 +337,17 @@ def _run_migrations_v13() -> None:
 
 
 database.run_migrations = _run_migrations_v13
+
+# v1.4.2 defensive repair for installations upgraded through older v1.x builds.
+# The Cash Flow page depends on the v1.3 account buffer column and override table.
+# Re-running this idempotent migration immediately before a projection makes the
+# endpoint self-healing if an earlier add-on startup missed the v1.3 migration.
+_legacy_cashflow_projection_v142 = v13_cashflow.cashflow_projection
+
+
+def _cashflow_projection_v142(*args, **kwargs):
+    v13_cashflow.run_v13_migrations(database.get_engine())
+    return _legacy_cashflow_projection_v142(*args, **kwargs)
+
+
+v13_cashflow.cashflow_projection = _cashflow_projection_v142
