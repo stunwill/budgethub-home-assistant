@@ -18,6 +18,7 @@ export default function AppV13() {
   const [v13CashFlowOpen, setV13CashFlowOpen] = useState(false);
   const [householdOpen, setHouseholdOpen] = useState(false);
   const [householdSecurity, setHouseholdSecurity] = useState(null);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const observerRef = useRef(null);
 
   async function refreshAuth() {
@@ -72,6 +73,13 @@ export default function AppV13() {
     };
   }, [auth?.authenticated]);
 
+  const openTool = (mode) => {
+    setToolsOpen(false);
+    if (mode === 'cash-flow') setV13CashFlowOpen(true);
+    else if (mode === 'household') setHouseholdOpen(true);
+    else setV11Mode(mode);
+  };
+
   if (!auth) {
     return <main className="fynvo-auth-page"><section className="fynvo-auth-form-panel"><div className="fynvo-auth-card" role="status">Loading Fynvo…</div></section></main>;
   }
@@ -118,13 +126,24 @@ export default function AppV13() {
       </div>
     )}
     <App />
-    <nav className="v11-launcher" aria-label="Fynvo data, security, household and cash-flow tools">
-      <button type="button" onClick={() => setV13CashFlowOpen(true)}>Cash Flow Intelligence</button>
-      <button type="button" onClick={() => setHouseholdOpen(true)}>Household</button>
-      <button type="button" onClick={() => setV11Mode('coverage')}>Data Coverage</button>
-      <button type="button" onClick={() => setV11Mode('splits')}>Split Transaction</button>
-      <button type="button" onClick={() => setV11Mode('security')}>Security & MFA</button>
-      <button type="button" onClick={() => setV11Mode('export')}>Data Export</button>
-    </nav>
+    <div className="fynvo-tools-menu-shell">
+      <button
+        type="button"
+        className="fynvo-tools-menu-trigger"
+        aria-expanded={toolsOpen}
+        aria-controls="fynvo-tools-menu"
+        onClick={() => setToolsOpen((value) => !value)}
+      >
+        Tools
+      </button>
+      {toolsOpen && <nav id="fynvo-tools-menu" className="fynvo-tools-menu" aria-label="Fynvo tools">
+        <button type="button" onClick={() => openTool('cash-flow')}>Cash Flow Intelligence</button>
+        <button type="button" onClick={() => openTool('household')}>Household</button>
+        <button type="button" onClick={() => openTool('coverage')}>Data Coverage</button>
+        <button type="button" onClick={() => openTool('splits')}>Split Transaction</button>
+        <button type="button" onClick={() => openTool('security')}>Security & MFA</button>
+        <button type="button" onClick={() => openTool('export')}>Data Export</button>
+      </nav>}
+    </div>
   </>;
 }

@@ -7,25 +7,72 @@ const api = (path, options = {}) => fetch(`api${path}`, {
 });
 
 const money = (value) => new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(Number(value || 0));
+const compactMoney = (value) => {
+  const number = Number(value || 0);
+  const absolute = Math.abs(number);
+  if (absolute >= 10000) return `${number < 0 ? '-' : ''}$${Math.round(absolute / 1000)}k`;
+  return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(number);
+};
 const dateLabel = (value) => value ? new Intl.DateTimeFormat('en-AU', { day: '2-digit', month: 'short' }).format(new Date(`${String(value).slice(0, 10)}T00:00:00`)) : '';
 const horizons = [
   ['7d', '7 days'], ['14d', '14 days'], ['30d', '30 days'], ['60d', '60 days'], ['90d', '90 days'], ['6m', '6 months'], ['12m', '12 months'],
 ];
 
+function niceStep(span) {
+  const rough = Math.max(span / 4, 1);
+  const magnitude = 10 ** Math.floor(Math.log10(rough));
+  const normalized = rough / magnitude;
+  const factor = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+  return factor * magnitude;
+}
+
 function ForecastChart({ points = [] }) {
   const values = points.map((point) => Number(point.balance || 0));
   if (points.length < 2) return <div className="v13-empty">Not enough forecast data to draw a projection yet.</div>;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = Math.max(max - min, 1);
+
+  const rawMin = Math.min(...values, 0);
+  const rawMax = Math.max(...values, 0);
+  const step = niceStep(Math.max(rawMax - rawMin, 1));
+  const min = Math.floor(rawMin / step) * step;
+  const max = Math.ceil(rawMax / step) * step || step;
+  const span = Math.max(max - min, step);
   const width = 900;
-  const height = 260;
+  const height = 300;
+  const left = 92;
+  const right = 18;
+  const top = 18;
+  const bottom = 46;
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
   const path = points.map((point, index) => {
-    const x = (index / Math.max(points.length - 1, 1)) * width;
-    const y = height - ((Number(point.balance || 0) - min) / span) * (height - 30) - 15;
+    const x = left + (index / Math.max(points.length - 1, 1)) * plotWidth;
+    const y = top + plotHeight - ((Number(point.balance || 0) - min) / span) * plotHeight;
     return `${index === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
   }).join(' ');
-  return <div className="v13-chart-wrap"><svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Projected household balance over time"><path d={path} fill="none" stroke="currentColor" strokeWidth="4"/><line x1="0" y1={height - ((0 - min) / span) * (height - 30) - 15} x2={width} y2={height - ((0 - min) / span) * (height - 30) - 15} stroke="currentColor" opacity="0.15"/></svg><div className="v13-chart-range"><span>{money(max)}</span><span>{money(min)}</span></div></div>;
+
+  const yTicks = Array.from({ length: 5 }, (_, index) => max - (span * index / 4));
+  const targetXTicks = points.length <= 8 ? points.length : 5;
+  const xIndexes = [...new Set(Array.from({ length: targetXTicks }, (_, index) => Math.round(index * (points.length - 1) / Math.max(targetXTicks - 1, 1))))];
+
+  return <div className="v13-chart-wrap">
+    <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Projected household balance over time with readable currency and date axes">
+      {yTicks.map((tick, index) => {
+        const y = top + index * plotHeight / 4;
+        return <g key={`y-${index}`}><line className="v14-chart-grid" x1={left} y1={y} x2={width - right} y2={y}/><text className="v14-chart-axis-label" x={left - 14} y={y + 5} textAnchor="end">{compactMoney(tick)}</text></g>;
+      })}
+      {xIndexes.map((pointIndex) => {
+        const x = left + (pointIndex / Math.max(points.length - 1, 1)) * plotWidth;
+        return <g key={`x-${pointIndex}`}><line className="v14-chart-grid vertical" x1={x} y1={top} x2={x} y2={top + plotHeight}/><text className="v14-chart-axis-label" x={x} y={height - 14} textAnchor={pointIndex === 0 ? 'start' : pointIndex === points.length - 1 ? 'end' : 'middle'}>{dateLabel(points[pointIndex]?.date)}</text></g>;
+      })}
+      <path className="v14-chart-line" d={path}/>
+      {points.map((point, index) => {
+        const x = left + (index / Math.max(points.length - 1, 1)) * plotWidth;
+        const y = top + plotHeight - ((Number(point.balance || 0) - min) / span) * plotHeight;
+        return <circle key={`${point.date}-${index}`} className="v14-chart-point" cx={x} cy={y} r="5"><title>{dateLabel(point.date)}: {money(point.balance)}</title></circle>;
+      })}
+    </svg>
+    <div className="v14-chart-summary" aria-hidden="true"><span>Low {compactMoney(Math.min(...values))}</span><span>High {compactMoney(Math.max(...values))}</span></div>
+  </div>;
 }
 
 export default function V13CashFlowPage({ onClose }) {
@@ -56,7 +103,7 @@ export default function V13CashFlowPage({ onClose }) {
       setCalendar(days);
       setAccounts(Array.isArray(accountRows) ? accountRows : []);
     } catch {
-      setError('Could not load the v1.3 cash-flow view.');
+      setError('Could not load the cash-flow view.');
     } finally {
       setLoading(false);
     }
@@ -80,7 +127,7 @@ export default function V13CashFlowPage({ onClose }) {
     setSimulation(response.ok ? await response.json() : null);
   }
 
-  return <main className="v13-shell"><header className="v13-head"><div><span className="v13-kicker">Fynvo v1.3.0</span><h1>Cash Flow Intelligence</h1><p>See what is coming in, what is going out, and where the household balance is heading.</p></div><button type="button" onClick={onClose}>Back to Fynvo</button></header>
+  return <main className="v13-shell"><header className="v13-head"><div><span className="v13-kicker">Fynvo v1.4.0</span><h1>Cash Flow Intelligence</h1><p>See what is coming in, what is going out, and where the household balance is heading.</p></div><button type="button" onClick={onClose}>Back to Fynvo</button></header>
     <div className="v13-tabs" role="tablist">{['Cash Flow', 'Calendar', 'Upcoming'].map((name) => <button key={name} type="button" className={tab === name ? 'active' : ''} onClick={() => setTab(name)}>{name}</button>)}</div>
     {error && <p className="error">{error}</p>}
     {loading ? <section className="panel"><p>Loading forecast…</p></section> : tab === 'Cash Flow' ? <>

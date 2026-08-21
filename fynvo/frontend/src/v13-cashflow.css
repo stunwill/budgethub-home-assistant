@@ -13,9 +13,14 @@
 .v13-summary { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
 .v13-summary article { display: grid; gap: 4px; }
 .v13-summary strong { font-size: 1.45rem; }
-.v13-chart-wrap { position: relative; min-height: 260px; overflow: hidden; }
-.v13-chart-wrap svg { width: 100%; min-width: 620px; height: 260px; color: var(--primary, #0b69e3); }
-.v13-chart-range { position: absolute; inset: 8px 8px auto auto; display: grid; gap: 4px; text-align: right; font-size: .8rem; color: var(--muted, #65708a); }
+.v13-chart-wrap { position: relative; min-height: 250px; overflow: hidden; }
+.v13-chart-wrap svg { width: 100%; height: auto; max-height: 320px; display: block; }
+.v14-chart-grid { stroke: #dbe6f2; stroke-width: 1; stroke-dasharray: 5 6; }
+.v14-chart-grid.vertical { opacity: .72; }
+.v14-chart-axis-label { fill: var(--muted, #65708a); font-size: 18px; font-weight: 650; }
+.v14-chart-line { fill: none; stroke: var(--fynvo-blue, #005cff); stroke-width: 4; stroke-linejoin: round; stroke-linecap: round; }
+.v14-chart-point { fill: #fff; stroke: var(--fynvo-blue, #005cff); stroke-width: 3; }
+.v14-chart-summary { display: flex; justify-content: space-between; gap: 12px; color: var(--muted, #65708a); font-size: .8rem; margin-top: 6px; }
 .v13-warning-list { display: grid; gap: 10px; }
 .v13-warning { border: 1px solid rgba(160, 90, 0, .25); border-radius: 12px; padding: 14px; display: grid; gap: 5px; }
 .v13-warning.negative_balance { border-color: rgba(160, 20, 20, .35); }
@@ -42,7 +47,8 @@
   .v13-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .v13-two-col { grid-template-columns: 1fr; }
   .v13-calendar-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .v13-chart-wrap { overflow-x: auto; }
+  .v13-chart-wrap { overflow: hidden; }
+  .v14-chart-axis-label { font-size: 20px; }
 }
 
 @media (max-width: 430px) {
@@ -52,4 +58,7 @@
   .v13-summary strong { font-size: 1.3rem; }
   .v13-events { overflow-x: auto; }
   .v13-events .tr, .v13-events .thead { min-width: 760px; }
+  .v13-chart-wrap { min-height: 220px; }
+  .v13-chart-wrap svg { min-height: 220px; }
+  .v14-chart-axis-label { font-size: 22px; }
 }

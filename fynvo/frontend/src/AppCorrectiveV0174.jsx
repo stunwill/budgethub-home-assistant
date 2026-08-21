@@ -3,12 +3,13 @@ import InsightsPage from './InsightsPage.jsx';
 import logo from './assets/fynvo-logo.svg';
 import mark from './assets/fynvo-mark.svg';
 import { CategoriesPageV0174, RecurringExpensesPageV0174 } from './CorrectiveV0174Pages.jsx';
+import { AccountsPageV14, BillsPageV14, IncomePageV14, PlannedSpendingPageV14 } from './V14RecordPages.jsx';
 import { APP_VERSION_V0174, CashFlowChartV0174, CategorySelect } from './v0174-corrective.jsx';
 import './styles.css';
 
 const api = (path, options = {}) => fetch(`api${path}`, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options });
 const today = new Date().toISOString().slice(0, 10);
-const APP_VERSION = APP_VERSION_V0174;
+const APP_VERSION = '1.4.0';
 const navGroups = [
   { label: 'Core', items: ['Overview', 'Cash Flow', 'Calendar', 'Accounts'] },
   { label: 'Money', items: ['Transactions', 'Income', 'Bills', 'Recurring Expenses', 'Planned Spending'] },
@@ -245,7 +246,11 @@ export default function AppCorrectiveV0174() {
       {active === 'Goals' && <GoalsPage goals={data.goals} accounts={data.accounts} onEdit={(row) => setEdit({ type: 'goals', label: 'Goal', row, values: normaliseRecord('goals', row) })} onAdd={() => setQuick(quickDefaults('goals'))} onComplete={completeGoal}/>} 
       {active === 'Categories' && <CategoriesPageV0174 rangeDays={rangeDays} onEdit={setEdit} money={money}/>} 
       {active === 'Recurring Expenses' && <RecurringExpensesPageV0174 data={data} rangeDays={rangeDays} onEdit={setEdit} money={money} dateLabel={dateLabel} normaliseRecord={normaliseRecord}/>} 
-      {['Accounts','Transactions','Income','Bills','Planned Spending'].includes(active) && <RecordTable active={active} data={data} onEdit={setEdit}/>} 
+      {active === 'Accounts' && <AccountsPageV14 rows={data.accounts} onEdit={setEdit} onAdd={() => setQuick(quickDefaults('accounts'))} money={money} normaliseRecord={normaliseRecord}/>} 
+      {active === 'Income' && <IncomePageV14 rows={data.income} onEdit={setEdit} onAdd={() => setQuick(quickDefaults('income'))} money={money} dateLabel={dateLabel} normaliseRecord={normaliseRecord}/>} 
+      {active === 'Bills' && <BillsPageV14 rows={data.bills} onEdit={setEdit} onAdd={() => setQuick(quickDefaults('bills'))} money={money} dateLabel={dateLabel} normaliseRecord={normaliseRecord}/>} 
+      {active === 'Planned Spending' && <PlannedSpendingPageV14 rows={data.planned} onEdit={setEdit} onAdd={() => setQuick(quickDefaults('planned'))} money={money} dateLabel={dateLabel} normaliseRecord={normaliseRecord}/>} 
+      {active === 'Transactions' && <RecordTable active={active} data={data} onEdit={setEdit}/>} 
       <footer className="app-footer">Fynvo v{APP_VERSION}</footer>
     </main>
     {edit && <EditModal edit={edit} setEdit={setEdit} onSubmit={saveEdit} data={data}/>} 
