@@ -403,16 +403,3 @@ def _run_migrations_v13() -> None:
 
 
 database.run_migrations = _run_migrations_v13
-
-# v1.4.2 defensive repair for installations upgraded through older v1.x builds.
-# The migration is idempotent, so a projection can safely verify its required
-# account-buffer/override schema even if a previous add-on startup missed it.
-_legacy_cashflow_projection_v142 = v13_cashflow.cashflow_projection
-
-
-def _cashflow_projection_v142(*args, **kwargs):
-    v13_cashflow.run_v13_migrations(database.get_engine())
-    return _legacy_cashflow_projection_v142(*args, **kwargs)
-
-
-v13_cashflow.cashflow_projection = _cashflow_projection_v142
