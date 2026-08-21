@@ -64,7 +64,7 @@ from .ledger import (
     update_transfer,
 )
 from .models import User
-from .money import cents_to_decimal
+from .money import cents_to_decimal, parse_money
 from .schemas import (
     AccountCreate,
     AccountUpdate,
@@ -119,64 +119,101 @@ def version() -> dict[str, str]:
 
 
 @app.get("/api/auth/state", response_model=AuthStateResponse)
-def auth_state(request: Request, db: DbSession = DB_DEPENDENCY):
-    required = setup_required(db)
-    token = request.cookies.get(SESSION_COOKIE)
-    user = None
-    if token:
-        try:
-            user = get_current_user(request, db)
-        except HTTPException:
-            user = None
-    return AuthStateResponse(setup_required=required, authenticated=user is not None, user=public_user(user) if user else None)
+def auth_state(response: Response, db: DbSession = DB_DEPENDENCY, session_token: str | None = SESSION_COOKIE):
+    try:
+        user = get_current_user(response=response, db=db, session_token=session_token)
+        return AuthStateResponse(authenticated=True, setup_required=False, user=public_user(user))
+    except HTTPException:
+        return AuthStateResponse(authenticated=False, setup_required=setup_required(db), user=None)
 
 
 @app.post("/api/auth/setup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def setup(payload: SetupRequest, response: Response, request: Request, db: DbSession = DB_DEPENDENCY):
-    if not setup_required(db):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Fynvo is already configured")
-    user = create_initial_admin(db, payload.username, payload.display_name, payload.password)
-    token, expires_at = start_session(db, user, get_client_key(request))
-    response.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", expires=expires_at, secure=False)
+def setup_admin(payload: SetupRequest, response: Response, db: DbSession = DB_DEPENDENCY):
+    user = create_initial_admin(db, payload.username, payload.password, payload.display_name)
+    start_session(response, db, user)
     return public_user(user)
 
 
 @app.post("/api/auth/login", response_model=UserResponse)
-def login(payload: LoginRequest, response: Response, request: Request, db: DbSession = DB_DEPENDENCY):
+def login(payload: LoginRequest, request: Request, response: Response, db: DbSession = DB_DEPENDENCY):
     user = authenticate_user(db, payload.username, payload.password, get_client_key(request))
-    token, expires_at = start_session(db, user, get_client_key(request))
-    response.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", expires=expires_at, secure=False)
+    start_session(response, db, user)
     return public_user(user)
 
 
 @app.post("/api/auth/logout")
-def logout(request: Request, response: Response, db: DbSession = DB_DEPENDENCY):
-    revoke_current_session(db, request.cookies.get(SESSION_COOKIE))
-    response.delete_cookie(SESSION_COOKIE)
+def logout(response: Response, db: DbSession = DB_DEPENDENCY, session_token: str | None = SESSION_COOKIE):
+    revoke_current_session(response, db, session_token)
     return {"status": "ok"}
 
 
+@app.get("/api/auth/me", response_model=UserResponse)
+def me(current_user: User = USER_DEPENDENCY):
+    return public_user(current_user)
+
+
 @app.post("/api/auth/change-password")
-def change_password(payload: PasswordChangeRequest, request: Request, response: Response, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+def change_password(payload: PasswordChangeRequest, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
     if not verify_password(payload.current_password, current_user.password_hash):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
     current_user.password_hash = hash_password(payload.new_password)
     db.commit()
-    revoke_current_session(db, request.cookies.get(SESSION_COOKIE))
-    token, expires_at = start_session(db, current_user, get_client_key(request))
-    response.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", expires=expires_at, secure=False)
     return {"status": "ok"}
 
 
-@app.get("/api/dashboard", response_model=DashboardResponse)
-def dashboard(current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+@app.get("/api/dashboard/overview", response_model=DashboardResponse)
+def dashboard_overview(range_days: int = 90, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    if range_days not in (30, 60, 90):
+        range_days = 90
     ensure_seed_data(db, current_user)
-    return DashboardResponse(**get_overview(db, current_user), position=dashboard_position(db, current_user))
+    overview = get_overview(range_days)
+    position = dashboard_position(db, current_user)
+    start = today_local()
+    scheduled = schedule_summary(db, current_user, start, start + timedelta(days=range_days))
+    forecast = generate_forecast(db, current_user, "30d", "baseline")
+    bills = list_bills(db, current_user)
+    recurring = list_recurring(db, current_user)
+    planned = list_planned(db, current_user)
+    overdue_amount = sum(parse_money(item["amount"]) for item in bills if item["status"] == "overdue" and item["amount"] is not None)
+    planned_forecast = sum(parse_money(item["estimated_amount"]) for item in planned if item["include_in_forecast"] and item["status"] in {"planned", "committed"} and item["estimated_amount"] is not None)
+    overview.summary.available_cash = position["available_cash"]
+    overview.summary.net_position = position["net_position"]
+    overview.summary.assets = position["assets"]
+    overview.summary.liabilities = position["liabilities"]
+    overview.summary.account_count = position["account_count"]
+    overview.summary.income = scheduled["income"]
+    overview.summary.recurring_bills = scheduled["commitments"]
+    overview.summary.planned_spending = cents_to_decimal(planned_forecast)
+    overview.summary.projected_balance = forecast["final_balance"]
+    overview.summary.overdue_amount = cents_to_decimal(overdue_amount)
+    overview.summary.incomplete_recurring_count = len([item for item in recurring if "incomplete" in item["completeness"]])
+    overview.summary.incomplete_planned_count = len([item for item in planned if item["completeness"] == "incomplete"])
+    overview.summary.planned_item_count = len([item for item in planned if item["status"] != "cancelled"])
+    overview.summary.high_priority_planned_count = len([item for item in planned if item["priority"] == "high" and item["status"] != "cancelled"])
+    overview.summary.bills_due_count = len([item for item in bills if item["status"] in {"overdue", "due_today", "due_soon"}])
+    overview.recent_transactions = position["recent_transactions"]
+    overview.upcoming = [item for item in scheduled["events"] if item.get("status") != "paid"][:12]
+    overview.top_planned_spending = [item for item in planned if item["estimated_amount"] is not None and item["status"] != "cancelled"][:5]
+    overview.quick_stats = [
+        {"label": "Incomplete recurring records", "value": overview.summary.incomplete_recurring_count},
+        {"label": "Incomplete planned items", "value": overview.summary.incomplete_planned_count},
+        {"label": "30-day forecast balance", "value": forecast["final_balance"]},
+        {"label": "Lowest forecast balance", "value": forecast["lowest_balance"]["balance"]},
+    ]
+    if forecast["shortfall"]:
+        overview.quick_stats.append({"label": "Projected shortfall", "value": forecast["shortfall"]["balance"], "date": forecast["shortfall"]["date"]})
+    overview.empty_state = "Income, recurring expenses, bills, planned spending and forecasts are powering this overview."
+    return overview
+
+
+@app.get("/api/accounts/meta")
+def account_meta(current_user: User = USER_DEPENDENCY):
+    return {"account_types": sorted(ACCOUNT_TYPES)}
 
 
 @app.get("/api/accounts")
-def accounts(current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
-    return list_accounts(db, current_user)
+def accounts(include_archived: bool = False, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return list_accounts(db, current_user, include_archived)
 
 
 @app.post("/api/accounts", status_code=status.HTTP_201_CREATED)
@@ -184,30 +221,26 @@ def add_account(payload: AccountCreate, current_user: User = USER_DEPENDENCY, db
     return create_account(db, current_user, payload)
 
 
+@app.get("/api/accounts/{account_id}")
+def account_detail(account_id: int, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    account = get_account(db, current_user, account_id)
+    accounts_list = list_accounts(db, current_user, True)
+    return {"account": accounts_list[[row["id"] for row in accounts_list].index(account.id)], "transactions": running_transactions(db, current_user, account.id)}
+
+
 @app.put("/api/accounts/{account_id}")
 def edit_account(account_id: int, payload: AccountUpdate, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
     return update_account(db, current_user, account_id, payload)
 
 
-@app.delete("/api/accounts/{account_id}")
-def remove_account(account_id: int, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+@app.post("/api/accounts/{account_id}/archive")
+def archive(account_id: int, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
     return archive_account(db, current_user, account_id)
 
 
-@app.get("/api/accounts/{account_id}")
-def account_detail(account_id: int, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
-    account = get_account(db, current_user, account_id)
-    return {"id": account.id, "name": account.name, "account_type": account.account_type, "opening_balance": cents_to_decimal(account.opening_balance_cents), "is_active": account.is_active}
-
-
-@app.get("/api/accounts/{account_id}/transactions")
-def account_transactions(account_id: int, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
-    return running_transactions(db, current_user, account_id)
-
-
 @app.get("/api/transactions")
-def transactions(account_id: int | None = None, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
-    return list_transactions(db, current_user, account_id)
+def transactions(account_id: int | None = None, transaction_type: str | None = None, date_from: date | None = None, date_to: date | None = None, search: str | None = None, limit: int = Query(100, ge=1, le=500), current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return list_transactions(db, current_user, account_id, transaction_type, date_from, date_to, search, limit)
 
 
 @app.post("/api/transactions", status_code=status.HTTP_201_CREATED)
@@ -240,15 +273,8 @@ def remove_transfer(transfer_id: int, current_user: User = USER_DEPENDENCY, db: 
     return delete_transfer(db, current_user, transfer_id)
 
 
-@app.get("/api/account-types")
-def account_types(current_user: User = USER_DEPENDENCY):
-    del current_user
-    return {"account_types": ACCOUNT_TYPES}
-
-
 @app.get("/api/income")
 def income(current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
-    ensure_seed_data(db, current_user)
     return list_income(db, current_user)
 
 
@@ -258,8 +284,7 @@ def add_income(payload: IncomeCreate, current_user: User = USER_DEPENDENCY, db: 
 
 
 @app.get("/api/recurring-expenses")
-def recurring(filter: str = "all", current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
-    ensure_seed_data(db, current_user)
+def recurring_expenses(filter: str = "all", current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
     return list_recurring(db, current_user, filter)
 
 
@@ -269,9 +294,8 @@ def add_recurring(payload: RecurringExpenseCreate, current_user: User = USER_DEP
 
 
 @app.get("/api/bills")
-def bills(current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
-    ensure_seed_data(db, current_user)
-    return list_bills(db, current_user)
+def bills(filter: str = "all", current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return list_bills(db, current_user, filter)
 
 
 @app.post("/api/bills", status_code=status.HTTP_201_CREATED)
@@ -280,53 +304,59 @@ def add_bill(payload: BillCreate, current_user: User = USER_DEPENDENCY, db: DbSe
 
 
 @app.get("/api/planned-spending")
-def planned(current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
-    return list_planned(db, current_user)
+def planned_spending(filter: str = "all", search: str | None = None, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return list_planned(db, current_user, filter, search)
 
 
 @app.post("/api/planned-spending", status_code=status.HTTP_201_CREATED)
-def add_planned(payload: PlannedSpendingCreate, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+def add_planned_spending(payload: PlannedSpendingCreate, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
     return create_planned(db, current_user, payload)
 
 
 @app.put("/api/planned-spending/{planned_id}")
-def edit_planned(planned_id: int, payload: PlannedSpendingUpdate, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+def edit_planned_spending(planned_id: int, payload: PlannedSpendingUpdate, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
     return update_planned(db, current_user, planned_id, payload)
 
 
 @app.post("/api/planned-spending/{planned_id}/cancel")
-def cancel_planned_item(planned_id: int, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+def cancel_planned_spending(planned_id: int, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
     return cancel_planned(db, current_user, planned_id)
 
 
 @app.get("/api/schedule")
-def schedule(start: date | None = None, days: int = Query(default=31, ge=1, le=366), current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+def schedule(view: str = "month", start: date | None = None, end: date | None = None, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
     start = start or today_local()
-    return schedule_summary(db, current_user, start, start + timedelta(days=days - 1))
+    if end is None:
+        end = start + timedelta(days=7 if view == "week" else 28 if view == "pay_cycle" else 31)
+    return schedule_summary(db, current_user, start, end)
 
 
-@app.get("/api/schedule/year")
-def schedule_year(year: int | None = None, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
-    return annual_matrix(db, current_user, year or today_local().year)
-
-
-@app.get("/api/schedule/month")
+@app.get("/api/schedule/month/{year}/{month}")
 def schedule_month(year: int, month: int, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
     return month_week_matrix(db, current_user, year, month)
 
 
+@app.get("/api/schedule/year/{year}")
+def schedule_year(year: int, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    return annual_matrix(db, current_user, year)
+
+
 @app.get("/api/forecast")
 def forecast(horizon: str = "30d", mode: str = "baseline", start: date | None = None, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    if mode not in {"baseline", "expected"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="mode must be baseline or expected")
     return generate_forecast(db, current_user, horizon, mode, start)
 
 
 @app.get("/api/forecast/drilldown")
-def forecast_detail(period: str = "month", horizon: str = "90d", mode: str = "baseline", start: date | None = None, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
-    return forecast_drilldown(db, current_user, period, horizon, mode, start)
+def forecast_breakdown(period: str = "month", horizon: str = "30d", mode: str = "baseline", current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+    if period not in {"day", "month"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="period must be day or month")
+    return forecast_drilldown(db, current_user, period, horizon, mode)
 
 
 @app.post("/api/forecast/scenario")
-def forecast_scenario(payload: dict, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
+def scenario_forecast(payload: dict, current_user: User = USER_DEPENDENCY, db: DbSession = DB_DEPENDENCY):
     return compare_scenario(db, current_user, payload)
 
 
