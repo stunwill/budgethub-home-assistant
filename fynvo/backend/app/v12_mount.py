@@ -1,3 +1,5 @@
+# ruff: noqa: I001
+
 from fastapi import APIRouter
 
 # Import household migrations before v12_extra so the wrapper chain executes
