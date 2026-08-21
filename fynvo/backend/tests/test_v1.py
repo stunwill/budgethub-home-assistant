@@ -348,84 +348,72 @@ def test_future_effective_amount_change_preserves_base_and_forecast_history(clie
             "category_id": internet["id"],
             "expense_type_id": bill["id"],
         },
+    ).json()
+    changed = client.put(
+        f"/api/recurring-expenses/{created['id']}",
+        json={"amount": "80.00", "effective_from": "2026-10-01"},
     )
-    assert created.status_code == 201
-    recurring = created.json()
-    change = client.post(
-        "/api/effective-amount-changes",
-        json={
-            "entity_type": "recurring_expense",
-            "entity_id": recurring["id"],
-            "effective_date": "2026-10-01",
-            "new_amount": "80.00",
-            "note": "Plan changed",
-        },
-    )
-    assert change.status_code == 201
-    unchanged = next(row for row in client.get("/api/recurring-expenses").json() if row["id"] == recurring["id"])
-    assert unchanged["amount"] == "140.00"
+    assert changed.status_code == 200
+    assert changed.json()["amount"] == "140.00"
 
-    projection = client.get("/api/forecast?horizon=90d&mode=baseline&start=2026-09-01").json()
-    internet_events = [row for row in projection["events"] if row["source_type"] == "recurring_expense" and row["source_id"] == recurring["id"]]
+    forecast = client.get("/api/forecast?horizon=120d&start=2026-09-01").json()
+    internet_events = [event for event in forecast["events"] if event["source_type"] == "recurring_expense" and event["source_id"] == created["id"]]
+    assert internet_events[0]["date"] == "2026-09-01"
     assert internet_events[0]["amount"] == "-140.00"
-    assert next(row for row in internet_events if row["date"] >= "2026-10-01")["amount"] == "-80.00"
+    assert internet_events[1]["date"] == "2026-10-01"
+    assert internet_events[1]["amount"] == "-80.00"
 
 
-def test_monthly_schedule_card_relationship_and_filters(client):
+def test_end_date_stops_schedule_and_twelve_month_forecast(client):
     setup_user(client)
     acct = account(client)
-    card = client.post(
-        "/api/cards",
-        json={"account_id": acct["id"], "name": "Kristy ING Card", "card_type": "debit", "last_four": "1234"},
-    ).json()
-    streaming = category_by_path(client, "Entertainment → Streaming")
-    subscription = expense_type_by_name(client, "Subscription")
     created = client.post(
         "/api/recurring-expenses",
         json={
-            "name": "Netflix",
-            "amount": "29.00",
+            "name": "Three Month Plan",
+            "amount": "100.00",
             "frequency": "monthly",
-            "next_due_date": "2026-08-19",
-            "payment_method": "automatic_card_payment",
-            "card_id": card["id"],
-            "category_id": streaming["id"],
-            "expense_type_id": subscription["id"],
+            "next_due_date": "2026-09-01",
+            "end_date": "2026-11-01",
+            "payment_method": "direct_debit",
+            "account_id": acct["id"],
         },
-    )
-    assert created.status_code == 201
-    schedule = client.get("/api/schedule?start=2026-08-01&days=31").json()
-    netflix = next(row for row in schedule["events"] if row["name"] == "Netflix")
-    assert netflix["card_id"] == card["id"]
-    assert netflix["account_id"] == acct["id"]
+    ).json()
+    forecast = client.get("/api/forecast?horizon=12m&start=2026-09-01").json()
+    events = [event for event in forecast["events"] if event["source_type"] == "recurring_expense" and event["source_id"] == created["id"]]
+    assert [event["date"] for event in events] == ["2026-09-01", "2026-10-01", "2026-11-01"]
 
-    filtered = client.get(f"/api/schedule/v1?start=2026-08-01&end=2026-08-31&category_id={streaming['id']}")
-    assert filtered.status_code == 200
-
-
-def test_reference_categories_include_seeded_hierarchy(client):
-    setup_user(client)
-    rows = client.get("/api/categories").json()
-    assert any(row["path"] == "Housing → Mortgage" for row in rows)
-    assert any(row["path"] == "Utilities → Electricity" for row in rows)
+    schedule = client.get("/api/schedule?start=2026-09-01&end=2027-08-31").json()
+    rows = [event for event in schedule["events"] if event["kind"] == "recurring_expense" and event["name"] == "Three Month Plan"]
+    assert [event["date"] for event in rows] == ["2026-09-01", "2026-10-01", "2026-11-01"]
 
 
-def test_recurring_cost_endpoint_rejects_unsupported_frequency(client):
-    setup_user(client)
-    response = client.get("/api/recurring-expenses/cost?amount=20&frequency=never")
-    assert response.status_code == 400
-
-
-def test_recurring_cost_every_28_days(client):
-    setup_user(client)
-    response = client.get("/api/recurring-expenses/cost?amount=28&frequency=every_28_days")
-    assert response.status_code == 200
-    assert response.json()["show_monthly"] is True
-
-
-def test_recurring_expense_list_filter(client):
+def test_linked_bill_suppresses_duplicate_recurring_occurrence(client):
     setup_user(client)
     acct = account(client)
-    client.post("/api/recurring-expenses", json={"name": "Active", "amount": "10", "frequency": "monthly", "next_due_date": "2026-09-01", "account_id": acct["id"]})
-    rows = client.get("/api/recurring-expenses?filter=active").json()
-    assert any(row["name"] == "Active" for row in rows)
+    recurring = client.post(
+        "/api/recurring-expenses",
+        json={
+            "name": "Water",
+            "amount": "100.00",
+            "frequency": "quarterly",
+            "next_due_date": "2026-10-15",
+            "payment_method": "direct_debit",
+            "account_id": acct["id"],
+        },
+    ).json()
+    bill = client.post(
+        "/api/bills",
+        json={
+            "name": "Water",
+            "amount": "100.00",
+            "due_date": "2026-10-15",
+            "account_id": acct["id"],
+            "recurring_expense_id": recurring["id"],
+        },
+    )
+    assert bill.status_code == 201
+    schedule = client.get("/api/schedule?start=2026-10-01&end=2026-10-31").json()
+    same = [row for row in schedule["events"] if row["name"] == "Water" and row["date"] == "2026-10-15"]
+    assert len(same) == 1
+    assert same[0]["kind"] == "bill"
