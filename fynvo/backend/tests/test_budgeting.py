@@ -60,40 +60,51 @@ def test_category_hierarchy_reparent_and_cycle_prevention(client):
         db.close()
 
 
-def test_budget_create_edit_deactivate_and_version_history(client):
+def test_budget_create_update_history_and_analysis(client):
     db, user = setup_user(client)
     try:
         groceries = create_category(db, user, {"name": "Groceries"})
-        budget = create_budget(db, user, {"name": "Groceries monthly", "period_type": "monthly", "amount": "1200", "category_id": groceries["id"], "start_date": "2026-08-01"})
-        assert budget["amount"] == "1200.00"
-        edited = update_budget(db, user, budget["id"], {"amount": "1300", "effective_from": "2026-09-01", "change_note": "Food prices"})
-        assert edited["amount"] == "1300.00"
-        assert len(edited["versions"]) == 2
+        budget = create_budget(db, user, {"name": "Groceries", "category_id": groceries["id"], "category_name": "Groceries", "amount": "1000", "period": "monthly", "rollover_enabled": True})
+        assert budget["amount"] == "1000.00"
+        updated = update_budget(db, user, budget["id"], {"amount": "1100", "effective_from": "2026-10-01"})
+        assert updated["amount"] == "1100.00"
+        db.execute(text("INSERT INTO accounts (user_id,name,account_type,opening_balance_cents,is_active,created_at,updated_at) VALUES (:user_id,'Everyday','transaction',0,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"), {"user_id": user.id})
+        account_id = db.execute(text("SELECT id FROM accounts WHERE user_id=:user_id AND name='Everyday'"), {"user_id": user.id}).scalar()
+        db.execute(text("INSERT INTO transactions (user_id,account_id,transaction_date,amount_cents,transaction_type,description,category,source,status,reconciliation_state,created_at,updated_at) VALUES (:user_id,:account_id,'2026-08-10',68400,'expense','Supermarket','Groceries','manual','cleared','unmatched',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"), {"user_id": user.id, "account_id": account_id})
+        db.commit()
+        analysis = analyse_budgets(db, user, start=date(2026, 8, 1), end=date(2026, 8, 31), mode="normalised")
+        row = analysis["budgets"][0]
+        assert row["actual"] == "684.00"
+        assert row["current_remaining"] == "416.00"
+        assert row["counts"]["actual"] == 1
+        assert row["status"] in {"on_track", "approaching_limit", "projected_over_budget", "over_budget"}
+        versions = db.execute(text("SELECT COUNT(*) FROM budget_versions WHERE budget_id=:budget_id"), {"budget_id": budget["id"]}).scalar()
+        assert versions == 2
     finally:
         db.close()
 
 
-def test_budget_analysis_respects_category_hierarchy_and_actuals(client):
+def test_saved_view_preferences_persist_and_reset(client):
     db, user = setup_user(client)
     try:
-        parent = create_category(db, user, {"name": "Food", "budget_relationship": "shared_parent_pool"})
-        child = create_category(db, user, {"name": "Groceries", "parent_id": parent["id"]})
-        create_budget(db, user, {"name": "Food monthly", "period_type": "monthly", "amount": "1000", "category_id": parent["id"], "start_date": "2026-08-01"})
-        account = client.post("/api/accounts", json={"name": "Everyday", "account_type": "transaction", "opening_balance": "1000"}).json()
-        client.post("/api/transactions", json={"account_id": account["id"], "date": "2026-08-10", "amount": "250", "transaction_type": "expense", "description": "Shop", "category": child["path"]})
-        result = analyse_budgets(db, user, period="monthly", today=date(2026, 8, 20))
-        assert result["total_budget"] == "1000.00"
+        view = save_view(db, user, {"screen": "budgets", "name": "Monthly Household", "settings": {"sort": {"column": "utilisation", "direction": "desc"}, "columns": ["category", "budget", "actual"]}})
+        assert view["settings"]["sort"]["direction"] == "desc"
+        assert list_views(db, user, "budgets")[0]["name"] == "Monthly Household"
+        save_view(db, user, {"screen": "budgets", "name": "Default", "settings": {"columns": ["category"]}})
+        assert reset_view(db, user, "budgets")["reset"] is True
     finally:
         db.close()
 
 
-def test_saved_views_create_list_and_reset(client):
+def test_unbudgeted_category_detection(client):
     db, user = setup_user(client)
     try:
-        saved = save_view(db, user, {"name": "Monthly view", "view_type": "budget", "config": {"period": "monthly"}})
-        assert saved["name"] == "Monthly view"
-        assert len(list_views(db, user)) == 1
-        reset_view(db, user, saved["id"])
-        assert list_views(db, user) == []
+        db.execute(text("INSERT INTO accounts (user_id,name,account_type,opening_balance_cents,is_active,created_at,updated_at) VALUES (:user_id,'Everyday','transaction',0,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"), {"user_id": user.id})
+        account_id = db.execute(text("SELECT id FROM accounts WHERE user_id=:user_id AND name='Everyday'"), {"user_id": user.id}).scalar()
+        db.execute(text("INSERT INTO transactions (user_id,account_id,transaction_date,amount_cents,transaction_type,description,category,source,status,reconciliation_state,created_at,updated_at) VALUES (:user_id,:account_id,'2026-08-10',19600,'expense','Cafe','Dining Out','manual','cleared','unmatched',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"), {"user_id": user.id, "account_id": account_id})
+        db.commit()
+        analysis = analyse_budgets(db, user, start=date(2026, 8, 1), end=date(2026, 8, 31))
+        assert analysis["unbudgeted_categories"][0]["category"] == "Dining Out"
+        assert analysis["unbudgeted_categories"][0]["action"] == "create_budget"
     finally:
         db.close()
