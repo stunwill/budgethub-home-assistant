@@ -1,0 +1,60 @@
+@media(max-width:980px){
+  .content{
+    padding-top:76px;
+  }
+
+  .mobile-app-bar{
+    display:flex;
+    position:fixed;
+    top:0;
+    left:0;
+    right:0;
+    z-index:30;
+    height:64px;
+    margin:0;
+    padding:8px 18px;
+    align-items:center;
+    gap:14px;
+    background:#061b36;
+    color:#fff;
+    border-bottom:3px solid var(--fynvo-blue);
+    box-shadow:0 8px 24px rgba(6,27,54,.22);
+    backdrop-filter:none;
+  }
+
+  .mobile-app-bar .mobile-menu-button{
+    color:#fff;
+    background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.14);
+  }
+
+  .mobile-app-bar .mobile-menu-button:active{
+    background:rgba(255,255,255,.18);
+  }
+
+  .mobile-app-bar .mobile-app-identity{
+    color:#fff;
+    font-size:21px;
+    font-weight:800;
+  }
+
+  .sidebar{
+    z-index:40;
+  }
+
+  .mobile-nav-backdrop{
+    z-index:39;
+  }
+}
+
+@media(max-width:600px){
+  .content{
+    padding-top:74px;
+  }
+
+  .mobile-app-bar{
+    margin:0;
+    padding-left:14px;
+    padding-right:14px;
+  }
+}
