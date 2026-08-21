@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import App from './AppCorrectiveV0174.jsx';
+import HouseholdControlCenter from './HouseholdControlCenter.jsx';
 import LoginPage from './LoginPage.jsx';
 import V11ControlCenter from './V11ControlCenter.jsx';
 
@@ -13,6 +14,8 @@ export default function AppV13() {
   const [auth, setAuth] = useState(null);
   const [recoveryWarningDismissed, setRecoveryWarningDismissed] = useState(false);
   const [v11Mode, setV11Mode] = useState(null);
+  const [householdOpen, setHouseholdOpen] = useState(false);
+  const [householdSecurity, setHouseholdSecurity] = useState(null);
   const observerRef = useRef(null);
 
   async function refreshAuth() {
@@ -28,7 +31,25 @@ export default function AppV13() {
     }
   }
 
+  async function refreshHouseholdSecurity() {
+    try {
+      const response = await api('/household/me/security');
+      if (!response.ok) throw new Error('household-security');
+      const state = await response.json();
+      setHouseholdSecurity(state);
+      return state;
+    } catch {
+      setHouseholdSecurity({ must_change_password: false, mfa_enabled: false, active_session_count: 0 });
+      return null;
+    }
+  }
+
   useEffect(() => { refreshAuth(); }, []);
+
+  useEffect(() => {
+    if (auth?.authenticated) refreshHouseholdSecurity();
+    else setHouseholdSecurity(null);
+  }, [auth?.authenticated, auth?.user?.id]);
 
   useEffect(() => {
     if (!auth?.authenticated) return undefined;
@@ -61,6 +82,24 @@ export default function AppV13() {
     />;
   }
 
+  if (!householdSecurity) {
+    return <main className="fynvo-auth-page"><section className="fynvo-auth-form-panel"><div className="fynvo-auth-card" role="status">Loading Household identity…</div></section></main>;
+  }
+
+  if (householdSecurity.must_change_password) {
+    return <HouseholdControlCenter
+      forcePasswordChange
+      onPasswordChanged={async () => {
+        setHouseholdSecurity(null);
+        await refreshAuth();
+      }}
+    />;
+  }
+
+  if (householdOpen) {
+    return <HouseholdControlCenter onClose={() => setHouseholdOpen(false)}/>;
+  }
+
   if (v11Mode) {
     return <V11ControlCenter mode={v11Mode} onClose={() => setV11Mode(null)}/>;
   }
@@ -73,7 +112,8 @@ export default function AppV13() {
       </div>
     )}
     <App />
-    <nav className="v11-launcher" aria-label="Fynvo v1.1 data and security tools">
+    <nav className="v11-launcher" aria-label="Fynvo data, security and household tools">
+      <button type="button" onClick={() => setHouseholdOpen(true)}>Household</button>
       <button type="button" onClick={() => setV11Mode('coverage')}>Data Coverage</button>
       <button type="button" onClick={() => setV11Mode('splits')}>Split Transaction</button>
       <button type="button" onClick={() => setV11Mode('security')}>Security & MFA</button>

@@ -1,5 +1,45 @@
 # Fynvo Add-on Changelog
 
+## v1.2.0 - Household Identity & Access
+
+### Household identity
+- Added a first-class Household identity and explicit Household Membership records separate from User identity.
+- Existing installations migrate automatically to an initial Household without resetting the database or recreating financial records.
+- Existing administrators are preserved and become Administrator members of the migrated Household.
+
+### Members and roles
+- Added Administrator, Household Member and Read Only role vocabulary as authoritative membership data.
+- Added Household member management for create, edit, role change, deactivate, reactivate, password reset, MFA reset and session revocation.
+- Added protection against demoting or deactivating the only active Administrator.
+- Added deterministic username normalisation and duplicate prevention.
+
+### Authentication and security
+- Added temporary first-login credentials with a required password-change workflow instead of permanent shared/default passwords.
+- Password reset preserves the same User identity and historical attribution while revoking affected sessions.
+- Household members remain compatible with the v1.1.0 MFA foundation, and administrative MFA reset never reveals another user's MFA secret.
+- Household context is resolved by the authenticated backend and is not trusted from arbitrary frontend household identifiers.
+
+### Ownership and attribution foundations
+- Added Household ownership/visibility metadata foundations for existing financial records using legacy-compatible Household Shared behaviour.
+- Added Account ownership management that keeps Household, Owner, Creator and Last Updater as separate concepts.
+- Preserved Account → Card integrity, transaction provenance, import provenance, Financial Data Coverage, transaction splits and reconciliation semantics.
+- Comprehensive Private versus Household Shared permission enforcement remains intentionally deferred to v1.3.0.
+
+### User experience
+- Added a responsive Household Settings/member-management experience for phone, tablet and desktop layouts.
+- Added safe member/security status presentation without exposing password hashes, MFA secrets or session tokens.
+
+### Mobile preparation
+- Added architecture prerequisites for a future private native SwiftUI client using the same Fynvo backend, User identities, Household Memberships and authoritative financial database.
+- Documented future API versioning, mobile sessions, Keychain, Face ID, device revocation, local/Tailscale access, offline read caching, idempotent writes and notification considerations.
+
+### Versioning
+- Updated the Home Assistant add-on, backend and frontend release metadata to 1.2.0.
+
+### Deferred
+- Comprehensive record-level permissions, Private/Household Shared enforcement, selected-member sharing, immutable Audit Events and comprehensive Change History remain v1.3.0 work.
+- No native iPhone application, public mobile API, CDR/Open Banking connection, automatic bank sync, Home Assistant financial entities or standalone/cloud migration is introduced by v1.2.0.
+
 ## v1.0.0 - Stable Production Release
 
 ### Production readiness

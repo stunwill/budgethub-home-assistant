@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session as DbSession
 
-from . import intelligence, v09
+from . import intelligence, v09, v12_mount
 from .auth import (
     SESSION_COOKIE,
     authenticate_user,
@@ -100,6 +100,7 @@ app = FastAPI(title="Fynvo API", version=APP_VERSION, description="Fynvo househo
 app.add_middleware(CORSMiddleware, allow_origins=[], allow_credentials=True, allow_methods=["GET", "POST", "PUT", "DELETE"], allow_headers=["Content-Type"])
 app.include_router(v09.router)
 app.include_router(intelligence.router)
+app.include_router(v12_mount.router, prefix="/api")
 
 
 def public_user(user: User) -> UserResponse:
