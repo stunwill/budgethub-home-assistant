@@ -45,11 +45,53 @@ class PurchaseSimulation(BaseModel):
     horizon: str = "30d"
 
 
+def _column_names(connection, table: str) -> set[str]:
+    return {
+        str(row["name"])
+        for row in connection.execute(text(f"PRAGMA table_info({table})")).mappings()
+    }
+
+
+def _add_column(connection, table: str, definition: str, columns: set[str]) -> None:
+    column = definition.split()[0]
+    if column not in columns:
+        connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {definition}"))
+        columns.add(column)
+
+
 def run_v13_migrations(engine) -> None:
     with engine.begin() as connection:
-        columns = {str(row["name"]) for row in connection.execute(text("PRAGMA table_info(accounts)")).mappings()}
-        if "minimum_balance_cents" not in columns:
-            connection.execute(text("ALTER TABLE accounts ADD COLUMN minimum_balance_cents INTEGER"))
+        account_columns = _column_names(connection, "accounts")
+        _add_column(connection, "accounts", "minimum_balance_cents INTEGER", account_columns)
+        _add_column(connection, "accounts", "archived_at DATETIME", account_columns)
+
+        bill_columns = _column_names(connection, "bills")
+        for definition in (
+            "original_status VARCHAR(80)",
+            "original_amount_cents INTEGER",
+            "remaining_amount_cents INTEGER",
+            "pay_cycle_date DATE",
+            "source_account_text VARCHAR(140)",
+            "resolved_at DATETIME",
+            "paid_at DATETIME",
+        ):
+            _add_column(connection, "bills", definition, bill_columns)
+
+        if "amount_cents" in bill_columns:
+            connection.execute(text("""
+                UPDATE bills
+                SET original_amount_cents=COALESCE(original_amount_cents, amount_cents),
+                    remaining_amount_cents=COALESCE(remaining_amount_cents, original_amount_cents, amount_cents)
+            """))
+        else:
+            connection.execute(text("""
+                UPDATE bills
+                SET remaining_amount_cents=COALESCE(remaining_amount_cents, original_amount_cents)
+            """))
+
+        planned_columns = _column_names(connection, "planned_spending")
+        _add_column(connection, "planned_spending", "archived_at DATETIME", planned_columns)
+
         connection.execute(text("""
             CREATE TABLE IF NOT EXISTS forecast_occurrence_overrides (
                 id INTEGER PRIMARY KEY,
