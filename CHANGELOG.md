@@ -2,6 +2,38 @@
 
 All notable Fynvo changes are documented here. Starting with v0.3.0, every release must include a user-readable changelog entry, Home Assistant-visible release notes and GitHub release notes.
 
+## v1.3.0 - Cash Flow Intelligence, Financial Calendar & Smart Forecasting
+
+### Added
+- Added a dedicated v1.3 Cash Flow Intelligence experience with projected household balance, expected income and expenses, lowest projected balance and explainable event-level breakdowns.
+- Added 7, 14, 30, 60 and 90 day plus 6 and 12 month forecast horizons.
+- Added per-Account projected balances and optional minimum-balance safety buffers.
+- Added low-balance and negative-balance warnings with expected date, projected balance, shortfall and contributing event.
+- Added occurrence-level forecast overrides for amount changes, rescheduling and due/overdue/paid/skipped status without rewriting the recurring template.
+- Added Financial Calendar daily income, expense and net-movement totals.
+- Added grouped Upcoming money views for Overdue, Today, Tomorrow, Next 7 Days, Later This Month and Future.
+- Added an isolated `Can I afford this?` future-purchase simulator showing balance before and after purchase, lowest later balance and safety-buffer/negative-balance risk.
+- Added additive v1.3 migration support for `accounts.minimum_balance_cents` and `forecast_occurrence_overrides`.
+- Added backend and frontend regression coverage for the new cash-flow workflows.
+
+### Forecast integrity
+- Internal Account-to-Account transfers update individual Account projections while remaining `$0` net at household level.
+- Forecast starting balances exclude future-dated transactions, preventing scheduled transfers from being reflected before their forecast date and then counted again.
+- Unresolved overdue bills remain visible in the forecast until resolved, skipped, paid or rescheduled.
+- Household closing balance is calculated independently from Account attribution, so forecast events without an Account still affect household cash flow correctly.
+- Forecast values remain explicitly identified as projections rather than confirmed transactions.
+
+### Mobile and accessibility
+- Added responsive Cash Flow, Calendar and Upcoming layouts for phone, tablet and desktop widths.
+- Retained semantic labels and non-colour text descriptions for important forecast warnings.
+
+### Versioning and documentation
+- Updated backend, frontend and Home Assistant add-on release metadata to 1.3.0.
+- Added v1.3.0 release notes and updated the README to describe the current release.
+
+### Known follow-up work
+- Direct bank-feed confirmation, richer historical balance snapshots and full record-level Household permissions/audit history remain separate follow-up work and are not represented as completed by this release.
+
 ## v1.2.0 - Household Identity & Access
 
 ### Added
@@ -97,40 +129,3 @@ All notable Fynvo changes are documented here. Starting with v0.3.0, every relea
 - Existing linked Bill/Recurring Expense schedule suppression remains in place so a linked Bill and its generated recurring occurrence are not both scheduled for the same date.
 - Effective-dated recurring amount changes remain the mechanism for changes such as `$140/month` becoming `$80/month` from a future date without rewriting history.
 - No direct ING connectivity, new production Open Banking/CDR provider, bank credentials or Cloudways migration is introduced by this release.
-
-### Regression protection
-- Added tests for case/whitespace Category duplicate prevention on create and update.
-- Added Category merge coverage proving linked Recurring Expense data survives parent/child consolidation.
-- Added Category health coverage for historical duplicate detection.
-- Added recurring-expense duplicate-review coverage proving detection is non-destructive.
-- Added commitment duplicate-suppression unit coverage.
-
-## v0.17.0 - Core Reliability & Pre-v1.0 Hardening
-
-### Fixed
-- Fixed the release-blocking Accounts `+ Add` workflow. New records were incorrectly sent to the update route as `PUT /api/accounts/null`, causing FastAPI to parse `null` as the integer `account_id` and return the reported raw validation error.
-- Fixed the shared create/edit modal contract so new records use the entity create endpoint with `POST`, while existing records continue to use the ID-based update endpoint with `PUT`.
-- Fixed internal transfers involving liability accounts so payments to a credit card or loan reduce the amount owing instead of increasing it.
-- Reinforced mobile drawer CSS so the application navigation remains off-canvas and closed by default at mobile widths.
-- Adjusted Australian date-only rendering so financial dates are anchored to local midnight rather than accidentally shifting because of UTC parsing.
-
-### Changed
-- Added friendly Account Type labels for Transaction Account, Savings Account, Offset Account, Credit Card, Cash, Mortgage, Personal Loan, Car Loan, Line of Credit, Investment Account, Superannuation, Other Asset and Other Liability.
-- Defined explicit asset/liability semantics. Liability opening balances are entered as positive amounts owing and Fynvo applies the internal balance rules.
-- Available Cash now intentionally includes only active Transaction, Savings, Offset and Cash balances. Investments, Superannuation, non-liquid assets and liabilities are excluded from Available Cash.
-- Archived accounts remain available for historical retrieval but are excluded from normal active account lists and cannot receive new manual transactions or transfers.
-- Normal validation failures are translated into concise user-facing messages instead of exposing raw Pydantic integer/field errors in the main workflow.
-- Mobile page actions and Account forms/modals are more compact and touch-friendly.
-- Updated release metadata to v0.17.0 across the Home Assistant add-on, backend and frontend.
-
-### Regression protection
-- Added the exact `Kristy - Main AC` account creation regression with a $2,000.00 opening balance, ING institution and generated Account ID.
-- Added same-ID Account edit/no-duplicate coverage.
-- Added Account balance, liability payment transfer, Available Cash, account-type metadata and archived-account write-protection tests.
-- Expanded frontend regression tests for create-versus-update routing, user-friendly Account types, validation messaging and reinforced mobile navigation behaviour.
-- Retained the v0.15 authentication/bootstrap/recovery/session regression suite and the v0.16 responsive navigation architecture.
-
-### Pre-v1.0 status
-- Added `docs/V1_READINESS_v0.17.0.md` with BLOCKER, HIGH, MEDIUM and LOW readiness gaps.
-- Real Home Assistant ingress testing, representative v0.16.0 upgrade validation and backup/restore validation remain required before Fynvo should be tagged v1.0.0.
-- The merged repository still does not contain the previously proposed Home Assistant financial sensor/entity implementation, so v0.17.0 does not claim those entities as delivered.
