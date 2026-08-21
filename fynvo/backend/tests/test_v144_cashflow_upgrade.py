@@ -1,7 +1,6 @@
-from sqlalchemy import text
-
 from app.database import get_engine
 from app.v13_cashflow import run_v13_migrations
+from sqlalchemy import text
 
 
 def test_v144_repairs_legacy_cashflow_columns(client):
