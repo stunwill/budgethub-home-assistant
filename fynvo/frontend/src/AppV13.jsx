@@ -11,15 +11,6 @@ const api = (path, options = {}) => fetch(`api${path}`, {
   ...options,
 });
 
-const TOOL_MENU_ITEMS = [
-  ['cash-flow', 'Cash Flow Intelligence'],
-  ['household', 'Household'],
-  ['coverage', 'Data Coverage'],
-  ['splits', 'Split Transaction'],
-  ['security', 'Security & MFA'],
-  ['export', 'Data Export'],
-];
-
 export default function AppV13() {
   const [auth, setAuth] = useState(null);
   const [recoveryWarningDismissed, setRecoveryWarningDismissed] = useState(false);
@@ -146,7 +137,12 @@ export default function AppV13() {
         Tools
       </button>
       {toolsOpen && <nav id="fynvo-tools-menu" className="fynvo-tools-menu" aria-label="Fynvo tools">
-        {TOOL_MENU_ITEMS.map(([mode, label]) => <button key={mode} type="button" onClick={() => openTool(mode)}>{label}</button>)}
+        <button type="button" onClick={() => openTool('cash-flow')}>Cash Flow Intelligence</button>
+        <button type="button" onClick={() => openTool('household')}>Household</button>
+        <button type="button" onClick={() => openTool('coverage')}>Data Coverage</button>
+        <button type="button" onClick={() => openTool('splits')}>Split Transaction</button>
+        <button type="button" onClick={() => openTool('security')}>Security & MFA</button>
+        <button type="button" onClick={() => openTool('export')}>Data Export</button>
       </nav>}
     </div>
   </>;
