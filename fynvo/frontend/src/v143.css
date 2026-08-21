@@ -1,0 +1,41 @@
+@media(max-width:980px){
+  .sidebar{
+    z-index:100!important;
+    opacity:1!important;
+    pointer-events:auto!important;
+    isolation:isolate;
+  }
+
+  .sidebar nav,
+  .sidebar .nav-group,
+  .sidebar .nav-group button,
+  .sidebar .brand,
+  .sidebar .user-card,
+  .sidebar .sidebar-logout,
+  .sidebar .mobile-nav-close{
+    position:relative;
+    z-index:2;
+    pointer-events:auto!important;
+    opacity:1!important;
+  }
+
+  .mobile-nav-backdrop{
+    z-index:80!important;
+  }
+
+  .mobile-nav-open .mobile-nav-backdrop{
+    left:min(86vw,350px);
+  }
+}
+
+@media(max-width:600px){
+  .mobile-nav-open .mobile-nav-backdrop{
+    left:min(88vw,340px);
+  }
+}
+
+@media(max-width:360px){
+  .mobile-nav-open .mobile-nav-backdrop{
+    left:min(90vw,320px);
+  }
+}
