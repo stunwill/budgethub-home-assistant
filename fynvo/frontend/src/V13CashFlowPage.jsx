@@ -6,6 +6,20 @@ const api = (path, options = {}) => fetch(`api${path}`, {
   ...options,
 });
 
+async function readJson(response, label) {
+  if (!response.ok) {
+    let detail = '';
+    try {
+      const payload = await response.json();
+      detail = typeof payload?.detail === 'string' ? `: ${payload.detail}` : '';
+    } catch {
+      detail = '';
+    }
+    throw new Error(`${label} failed (${response.status})${detail}`);
+  }
+  return response.json();
+}
+
 const money = (value) => new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(Number(value || 0));
 const compactMoney = (value) => {
   const number = Number(value || 0);
@@ -84,30 +98,45 @@ export default function V13CashFlowPage({ onClose }) {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [accountError, setAccountError] = useState('');
   const [purchase, setPurchase] = useState({ amount: '', proposed_date: '', account_id: '', description: '' });
   const [simulation, setSimulation] = useState(null);
   const [bufferEdit, setBufferEdit] = useState({ account_id: '', minimum_balance: '' });
 
+  async function loadAccounts() {
+    setAccountError('');
+    try {
+      const rows = await api('/accounts').then((response) => readJson(response, 'Accounts'));
+      setAccounts(Array.isArray(rows) ? rows : []);
+    } catch (caught) {
+      setAccounts([]);
+      setAccountError(caught instanceof Error ? caught.message : 'Could not load accounts.');
+    }
+  }
+
   async function load() {
     setLoading(true);
     setError('');
-    try {
-      const [cash, future, days, accountRows] = await Promise.all([
-        api(`/v1.3/cash-flow?horizon=${horizon}&mode=expected`).then((r) => r.json()),
-        api(`/v1.3/upcoming?horizon=${horizon}`).then((r) => r.json()),
-        api('/v1.3/calendar?days=31').then((r) => r.json()),
-        api('/accounts').then((r) => r.json()),
-      ]);
-      setProjection(cash);
-      setUpcoming(future);
-      setCalendar(days);
-      setAccounts(Array.isArray(accountRows) ? accountRows : []);
-    } catch {
-      setError('Could not load the cash-flow view.');
-    } finally {
-      setLoading(false);
+    const [cashResult, upcomingResult, calendarResult] = await Promise.allSettled([
+      api(`/v1.3/cash-flow?horizon=${horizon}&mode=expected`).then((response) => readJson(response, 'Cash flow')),
+      api(`/v1.3/upcoming?horizon=${horizon}`).then((response) => readJson(response, 'Upcoming')),
+      api('/v1.3/calendar?days=31').then((response) => readJson(response, 'Calendar')),
+    ]);
+
+    if (cashResult.status === 'fulfilled') {
+      setProjection(cashResult.value);
+    } else {
+      setProjection(null);
+      setError(cashResult.reason instanceof Error ? cashResult.reason.message : 'Could not load the cash-flow view.');
     }
+    setUpcoming(upcomingResult.status === 'fulfilled' ? upcomingResult.value : null);
+    setCalendar(calendarResult.status === 'fulfilled' ? calendarResult.value : null);
+    setLoading(false);
   }
+
+  useEffect(() => {
+    loadAccounts();
+  }, []);
 
   useEffect(() => { load(); }, [horizon]);
 
@@ -116,9 +145,14 @@ export default function V13CashFlowPage({ onClose }) {
   async function saveBuffer(event) {
     event.preventDefault();
     if (!bufferEdit.account_id) return;
-    await api(`/v1.3/accounts/${bufferEdit.account_id}/buffer`, { method: 'PUT', body: JSON.stringify({ minimum_balance: bufferEdit.minimum_balance || null }) });
+    const response = await api(`/v1.3/accounts/${bufferEdit.account_id}/buffer`, { method: 'PUT', body: JSON.stringify({ minimum_balance: bufferEdit.minimum_balance || null }) });
+    if (!response.ok) {
+      setAccountError(`Could not save account safety buffer (${response.status}).`);
+      return;
+    }
     setBufferEdit({ account_id: '', minimum_balance: '' });
     await load();
+    await loadAccounts();
   }
 
   async function simulate(event) {
@@ -127,9 +161,10 @@ export default function V13CashFlowPage({ onClose }) {
     setSimulation(response.ok ? await response.json() : null);
   }
 
-  return <main className="v13-shell"><header className="v13-head"><div><span className="v13-kicker">Fynvo v1.4.0</span><h1>Cash Flow Intelligence</h1><p>See what is coming in, what is going out, and where the household balance is heading.</p></div><button type="button" onClick={onClose}>Back to Fynvo</button></header>
+  return <main className="v13-shell"><header className="v13-head"><div><span className="v13-kicker">Fynvo v1.4.2</span><h1>Cash Flow Intelligence</h1><p>See what is coming in, what is going out, and where the household balance is heading.</p></div><button type="button" onClick={onClose}>Back to Fynvo</button></header>
     <div className="v13-tabs" role="tablist">{['Cash Flow', 'Calendar', 'Upcoming'].map((name) => <button key={name} type="button" className={tab === name ? 'active' : ''} onClick={() => setTab(name)}>{name}</button>)}</div>
     {error && <p className="error">{error}</p>}
+    {accountError && <p className="error">{accountError}</p>}
     {loading ? <section className="panel"><p>Loading forecast…</p></section> : tab === 'Cash Flow' ? <>
       <section className="v13-toolbar panel"><label>Forecast period<select value={horizon} onChange={(event) => setHorizon(event.target.value)}>{horizons.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><div><span>Forecast status</span><strong>Projected, not confirmed</strong></div></section>
       <section className="v13-summary">{[
