@@ -141,10 +141,10 @@ def test_account_meta_exposes_pre_v1_supported_types(client):
     assert {"transaction", "savings", "offset", "credit_card", "cash", "mortgage", "personal_loan", "car_loan", "line_of_credit", "investment", "superannuation", "other_asset", "other_liability"}.issubset(types)
 
 
-def test_migration_schema_version_eleven(client):
+def test_migration_schema_version_twelve(client):
     run_migrations()
     with get_engine().begin() as connection:
-        assert connection.execute(text("SELECT max(version) FROM schema_version")).scalar() == 11
+        assert connection.execute(text("SELECT max(version) FROM schema_version")).scalar() == 12
 
 
 def test_home_assistant_spa_routes_and_api_protection(client):
