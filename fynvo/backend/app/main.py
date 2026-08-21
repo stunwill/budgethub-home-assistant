@@ -64,7 +64,7 @@ from .ledger import (
     update_transfer,
 )
 from .models import User
-from .money import cents_to_decimal, parse_money
+from .money import cents_to_decimal
 from .schemas import (
     AccountCreate,
     AccountUpdate,
