@@ -4,12 +4,13 @@ import test from 'node:test';
 
 const app = await readFile(new URL('../src/AppCorrectiveV0174.jsx', import.meta.url), 'utf8');
 const payment = await readFile(new URL('../src/PaymentManagementV17.jsx', import.meta.url), 'utf8');
+const recurring = await readFile(new URL('../src/RecurringExpensesPageV151.jsx', import.meta.url), 'utf8');
 const accounts = await readFile(new URL('../src/V14RecordPages.jsx', import.meta.url), 'utf8');
 const main = await readFile(new URL('../src/main.jsx', import.meta.url), 'utf8');
 
 
 test('production frontend loads Cards and scheduled payment data', () => {
-  assert.match(app, /j\('\/cards/);
+  assert.match(app, /j\('\/cards\?include_inactive=true/);
   assert.match(app, /j\('\/scheduled-payments/);
   assert.match(app, /j\('\/payments\/attention/);
   assert.match(app, /active === 'Cards'/);
@@ -36,17 +37,31 @@ test('Card CRUD is connected to existing Accounts and stores only last four digi
   assert.match(payment, /Linked Account/);
   assert.match(payment, /Last 4 Digits/);
   assert.match(payment, /pattern="\[0-9\]\{4\}"/);
-  assert.match(payment, /Multiple|cards\.filter|account_id/);
+  assert.match(payment, /cards\.filter/);
   assert.match(accounts, /linked Cards/);
   assert.match(accounts, /Manage Cards/);
+});
+
+
+test('recurring list exposes payment method, payment status and attention filters', () => {
+  assert.match(recurring, /All payment methods/);
+  assert.match(recurring, /All statuses/);
+  assert.match(recurring, /Show payments requiring attention/);
+  assert.match(recurring, /PaymentInfo/);
+  assert.match(recurring, /Linked account:/);
 });
 
 
 test('payment attention and reconciliation actions are wired', () => {
   assert.match(payment, /Payments requiring attention/);
   assert.match(payment, /Mark as paid/);
+  assert.match(payment, /Skip payment/);
   assert.match(payment, /scheduled-payments\/\$\{paying\.id\}\/mark-paid/);
-  assert.match(payment, /payments\/match-candidates/);
+  assert.match(payment, /scheduled-payments\/\$\{paying\.id\}\/skip/);
+  assert.match(payment, /payments\/match-candidates\?date_tolerance_days=/);
   assert.match(payment, /Confirm match/);
-  assert.match(payment, /scheduled-payments\/\$\{row\.scheduled_payment_id\}\/match/);
+  assert.match(payment, /Not this expense/);
+  assert.match(payment, /Ignore transaction/);
+  assert.match(payment, /reject-match/);
+  assert.match(payment, /\/ignore/);
 });
