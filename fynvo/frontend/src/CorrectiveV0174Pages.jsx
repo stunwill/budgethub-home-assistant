@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import RecurringExpensesPageV151 from './RecurringExpensesPageV151.jsx';
 
 const api = (path, options = {}) => fetch(`api${path}`, {
   credentials: 'same-origin',
@@ -91,23 +92,6 @@ export function CategoriesPageV0174({ rangeDays, onEdit, money }) {
   </section>;
 }
 
-export function RecurringExpensesPageV0174({ data, rangeDays, onEdit, money, dateLabel, normaliseRecord }) {
-  const [frequency, setFrequency] = useState('all');
-  const [summary, setSummary] = useState(null);
-  const [duplicates, setDuplicates] = useState(null);
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([
-      api(`/corrective-v0174/recurring/summary?range_days=${rangeDays}&frequency=${encodeURIComponent(frequency)}`).then(async (response) => response.ok ? response.json() : null),
-      api('/v018/recurring-expenses/duplicates').then(async (response) => response.ok ? response.json() : null),
-    ]).then(([value, duplicateReview]) => {
-      if (cancelled) return;
-      setSummary(value);
-      setDuplicates(duplicateReview);
-    });
-    return () => { cancelled = true; };
-  }, [rangeDays, frequency, data.recurring.length]);
-  const rows = summary?.items || [];
-  const frequencies = [...new Set((data.recurring || []).map((item) => item.frequency).filter(Boolean))].sort();
-  return <section className="panel recurring-v0174"><div className="panel-head"><div><h2>Recurring Expenses</h2><p className="muted">The selected date range controls the scheduled total shown below.</p></div><button className="primary ghost" onClick={() => onEdit({ type: 'recurring', label: 'New Recurring Expense', row: { id: null }, values: normaliseRecord('recurring', {}) })}>+ Add</button></div>{duplicates?.count > 0 && <div className="recurring-duplicate-v018"><strong>{duplicates.count} possible duplicate group{duplicates.count === 1 ? '' : 's'} detected</strong><span>Nothing has been merged automatically. Review records before changing or archiving them.</span></div>}<div className="recurring-toolbar-v0174"><div><span>Total in selected range</span><strong>{summary ? money(summary.total) : 'Loading…'}</strong><small>{summary ? `${summary.occurrence_count} scheduled occurrences` : ''}</small></div><label>Frequency<select value={frequency} onChange={(e) => setFrequency(e.target.value)}><option value="all">All frequencies</option>{frequencies.map((item) => <option key={item} value={item}>{String(item).replaceAll('_', ' ')}</option>)}</select></label></div>{rows.length ? <div className="table recurring-table-v0174"><div className="thead"><span>Next due</span><span>Name</span><span>Amount</span><span>Frequency</span><span></span></div>{rows.map((row) => <div className="tr" key={row.id}><span>{dateLabel(row.next_due_date)}</span><span>{row.name}<small>{row.category || 'Uncategorised'}</small></span><span>{money(row.amount) || 'Not set'}</span><span>{String(row.frequency || 'Not set').replaceAll('_', ' ')}</span><button onClick={() => onEdit({ type: 'recurring', label: 'Recurring Expense', row, values: normaliseRecord('recurring', row) })}>Edit</button></div>)}</div> : <p className="muted">No recurring expenses match this frequency.</p>}</section>;
+export function RecurringExpensesPageV0174(props) {
+  return <RecurringExpensesPageV151 {...props}/>;
 }

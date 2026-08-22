@@ -2,6 +2,27 @@
 
 All notable Fynvo changes are documented here. Starting with v0.3.0, every release must include a user-readable changelog entry, Home Assistant-visible release notes and GitHub release notes.
 
+## v1.5.1 - Recurring Expenses UI refresh
+
+### Changed
+- Redesigned the Recurring Expenses experience around upcoming household cash-flow visibility rather than administrative record cards.
+- Consolidated search, date-range, frequency and Category filtering into one responsive filter workflow with Clear Filters behaviour.
+- Added a compact Scheduled Total summary with payment count and average-payment visibility derived from the filtered scheduled payments.
+- Added prominent Next Payment and Largest Upcoming Expense context.
+- Added a period breakdown using Next 7 days, Following 7 days and Later buckets that reconcile to the filtered total without double-counting.
+- Replaced desktop recurring-expense row cards with one lightweight sortable table showing relative and actual due dates, Name, Category, Amount, Frequency and accessible Actions.
+- Added restrained overdue, today/tomorrow and near-term due-date urgency styling that always includes textual status.
+- Added right-aligned tabular currency values and subtle frequency badges for faster scanning.
+- Replaced the native-looking Edit control with an accessible per-row actions menu while preserving the existing edit workflow.
+- Added compact responsive mobile rows, mobile search, a filter sheet and collapsible summary details modelled on the supplied Fynvo recurring-expense mock-ups.
+- Added first-class empty states for households with no recurring expenses and filtered result sets with no matches.
+- Kept recurring rules distinct from scheduled-payment rows, and reused the existing occurrence summary service rather than duplicating recurring records.
+
+### Release scope
+- This is a focused UI/usability release. No database migration is required.
+- Existing recurring-expense creation, editing, persistence, recurrence generation, forecasting, authentication and Home Assistant ingress architecture remain unchanged.
+- A recurring-expense List/Calendar switch is not exposed in this release because the existing general Financial Calendar does not yet provide a production-ready recurring-expense-specific calendar interaction. The recurring page remains structured so a real Calendar view can be added without replacing the List implementation.
+
 ## v1.3.0 - Cash Flow Intelligence, Financial Calendar & Smart Forecasting
 
 ### Added

@@ -14,6 +14,7 @@ import './v13-cashflow.css';
 import './v14.css';
 import './v142.css';
 import './v143.css';
+import './recurring-v151.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
