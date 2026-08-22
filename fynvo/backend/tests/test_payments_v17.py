@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 
 from app.database import get_engine
-from app.payments_v17 import _status_for, default_payment_handling
+from app.payments_v17 import _status_for, default_payment_handling, ensure_payment_schema
 from sqlalchemy import text
 
 
@@ -181,13 +181,58 @@ def test_transaction_match_is_one_to_one_and_preserves_variance(client):
     assert duplicate.status_code == 409
 
 
+def test_rejected_and_ignored_candidates_are_not_suggested_again(client):
+    setup_user(client)
+    account = create_account(client)
+    recurring = client.post(
+        "/api/recurring-expenses",
+        json={"name": "Insurance", "amount": "116.00", "frequency": "monthly", "next_due_date": "2026-08-21", "payment_method": "direct_debit", "account_id": account["id"], "payee_merchant": "Budget Direct"},
+    ).json()
+    first_tx = client.post(
+        "/api/transactions",
+        json={"account_id": account["id"], "date": "2026-08-21", "amount": "116.00", "transaction_type": "expense", "description": "BUDGET DIRECT", "merchant": "Budget Direct"},
+    ).json()
+    payment = next(item for item in client.get("/api/scheduled-payments").json() if item["recurring_expense_id"] == recurring["id"])
+    candidates = client.get("/api/payments/match-candidates").json()
+    assert any(item["transaction_id"] == first_tx["id"] and item["scheduled_payment_id"] == payment["id"] for item in candidates)
+    rejected = client.post(f"/api/scheduled-payments/{payment['id']}/reject-match", json={"transaction_id": first_tx["id"]})
+    assert rejected.status_code == 200
+    after_reject = client.get("/api/payments/match-candidates").json()
+    assert not any(item["transaction_id"] == first_tx["id"] and item["scheduled_payment_id"] == payment["id"] for item in after_reject)
+
+    second_tx = client.post(
+        "/api/transactions",
+        json={"account_id": account["id"], "date": "2026-08-22", "amount": "116.00", "transaction_type": "expense", "description": "BUDGET DIRECT", "merchant": "Budget Direct"},
+    ).json()
+    ignored = client.post(f"/api/payments/transactions/{second_tx['id']}/ignore")
+    assert ignored.status_code == 200
+    after_ignore = client.get("/api/payments/match-candidates").json()
+    assert not any(item["transaction_id"] == second_tx["id"] for item in after_ignore)
+
+
+def test_confirmed_mapping_is_remembered(client):
+    setup_user(client)
+    account = create_account(client)
+    recurring = client.post(
+        "/api/recurring-expenses",
+        json={"name": "Netflix", "amount": "20.00", "frequency": "monthly", "next_due_date": "2026-08-20", "payment_method": "direct_debit", "account_id": account["id"], "payee_merchant": "Netflix"},
+    ).json()
+    tx = client.post(
+        "/api/transactions",
+        json={"account_id": account["id"], "date": "2026-08-20", "amount": "20.00", "transaction_type": "expense", "description": "NETFLIX.COM", "merchant": "Netflix"},
+    ).json()
+    payment = next(item for item in client.get("/api/scheduled-payments").json() if item["recurring_expense_id"] == recurring["id"])
+    assert client.post(f"/api/scheduled-payments/{payment['id']}/match", json={"transaction_id": tx["id"], "confidence": "high"}).status_code == 200
+    with get_engine().connect() as connection:
+        count = connection.execute(text("SELECT confirmed_count FROM recurring_match_mappings WHERE recurring_expense_id=:rid"), {"rid": recurring["id"]}).scalar()
+    assert count == 1
+
+
 def test_payment_migration_is_idempotent_and_preserves_cards(client):
     setup_user(client)
     account = create_account(client)
     card = create_card(client, account["id"])
     engine = get_engine()
-    from app.payments_v17 import ensure_payment_schema
-
     ensure_payment_schema(engine)
     ensure_payment_schema(engine)
     with engine.connect() as connection:
