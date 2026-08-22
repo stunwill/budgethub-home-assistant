@@ -8,7 +8,9 @@ const css = fs.readFileSync(new URL('../src/recurring-v151.css', import.meta.url
 const expectSource = (needle, message) => assert.ok(page.includes(needle), message || `Expected RecurringExpensesPageV151.jsx to contain ${needle}`);
 
 test('v1.5.1 consolidates recurring expense filtering', () => {
-  for (const text of ['Search expenses...', 'Next 7 days', 'Next 14 days', 'Next 30 days', 'Next 60 days', 'Next 90 days', 'All frequencies', 'All categories', 'Clear filters']) expectSource(text);
+  for (const text of ['Search expenses...', 'All frequencies', 'All categories', 'Clear filters']) expectSource(text);
+  expectSource('const RANGE_OPTIONS = [7, 14, 30, 60, 90];', 'date-range options should include 7, 14, 30, 60 and 90 days');
+  expectSource('Next {days} days', 'date-range labels should be generated from the supported range options');
   expectSource("setSearch(''); setRangeDays(DEFAULT_RANGE); setFrequency('all'); setCategory('all');", 'clear filters should restore all filter defaults');
 });
 
