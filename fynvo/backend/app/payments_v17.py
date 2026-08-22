@@ -16,7 +16,7 @@ from .models import User
 from .money import cents_to_decimal, parse_money
 from .security import utcnow
 
-router = APIRouter(prefix="/api")
+router = APIRouter()
 DB = Depends(get_db)
 USER = Depends(get_current_user)
 
@@ -135,11 +135,6 @@ def ensure_payment_schema(engine) -> None:
         connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_scheduled_payment_tx_unique ON scheduled_payments(user_id,matched_transaction_id) WHERE matched_transaction_id IS NOT NULL"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_scheduled_payment_history ON scheduled_payment_history(user_id,scheduled_payment_id,created_at)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_payment_match_decisions ON scheduled_payment_match_decisions(user_id,transaction_id,scheduled_payment_id)"))
-        current = connection.execute(text("SELECT MAX(version) FROM schema_version")).scalar()
-        if current is None:
-            connection.execute(text("INSERT INTO schema_version(version) VALUES (17)"))
-        elif int(current) < 17:
-            connection.execute(text("UPDATE schema_version SET version=17"))
 
 
 def create_recurring_v17(db: DbSession, user: User, payload: RecurringExpenseCreateV17) -> dict[str, Any]:
