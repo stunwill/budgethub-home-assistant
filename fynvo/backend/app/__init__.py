@@ -265,7 +265,20 @@ def _data_integrity_v0174(current_user=USER_DEPENDENCY, db=DB_DEPENDENCY):
 
 v1.router.add_api_route("/v1/acceptance/data-integrity", _data_integrity_v0174, methods=["GET"])
 
-from . import auth_v15, banking_v12, budget_v14, corrective_v0174, dashboard_v12, goals, insights_v14, payments_v17, scenarios, v09, v11, v13_cashflow
+from . import (
+    auth_v15,
+    banking_v12,
+    budget_v14,
+    corrective_v0174,
+    dashboard_v12,
+    goals,
+    insights_v14,
+    payments_v17,
+    scenarios,
+    v09,
+    v11,
+    v13_cashflow,
+)
 
 schemas.RecurringExpenseCreate = payments_v17.RecurringExpenseCreateV17
 finance.create_recurring = payments_v17.create_recurring_v17
