@@ -402,9 +402,7 @@ def match_candidates(current_user: User = USER, db: DbSession = DB):
             account_match = payment.get("account_id") is None or int(payment["account_id"]) == int(tx.get("account_id") or -1)
             if amount_ratio <= 0.02 and days <= 2 and account_match:
                 confidence = "high"
-            elif amount_ratio <= 0.10 and days <= 4:
-                confidence = "medium"
-            elif text_match and days <= 7:
+            elif (amount_ratio <= 0.10 and days <= 4) or (text_match and days <= 7):
                 confidence = "medium"
             else:
                 continue
