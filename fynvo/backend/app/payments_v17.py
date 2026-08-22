@@ -4,7 +4,7 @@ from calendar import monthrange
 from datetime import date, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session as DbSession
@@ -117,9 +117,24 @@ def ensure_payment_schema(engine) -> None:
                 UNIQUE(user_id, recurring_expense_id, merchant_key, account_id)
             )
         """))
+        connection.execute(text("""
+            CREATE TABLE IF NOT EXISTS scheduled_payment_match_decisions (
+                id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                transaction_id INTEGER NOT NULL,
+                scheduled_payment_id INTEGER,
+                decision VARCHAR(30) NOT NULL,
+                created_at DATETIME NOT NULL,
+                UNIQUE(user_id, transaction_id, scheduled_payment_id, decision),
+                FOREIGN KEY(user_id) REFERENCES users(id),
+                FOREIGN KEY(transaction_id) REFERENCES transactions(id),
+                FOREIGN KEY(scheduled_payment_id) REFERENCES scheduled_payments(id)
+            )
+        """))
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_scheduled_payment_attention ON scheduled_payments(user_id,status,expected_date)"))
         connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_scheduled_payment_tx_unique ON scheduled_payments(user_id,matched_transaction_id) WHERE matched_transaction_id IS NOT NULL"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_scheduled_payment_history ON scheduled_payment_history(user_id,scheduled_payment_id,created_at)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS idx_payment_match_decisions ON scheduled_payment_match_decisions(user_id,transaction_id,scheduled_payment_id)"))
         current = connection.execute(text("SELECT MAX(version) FROM schema_version")).scalar()
         if current is None:
             connection.execute(text("INSERT INTO schema_version(version) VALUES (17)"))
@@ -372,8 +387,43 @@ def match_payment(payment_id: int, payload: MatchRequest, current_user: User = U
     return {"status": "paid", "scheduled_payment_id": payment_id, "transaction_id": payload.transaction_id, "actual_amount": cents_to_decimal(actual_amount), "match_confidence": confidence}
 
 
+class MatchDecisionRequest(BaseModel):
+    transaction_id: int
+
+
+@router.post("/scheduled-payments/{payment_id}/reject-match")
+def reject_match(payment_id: int, payload: MatchDecisionRequest, current_user: User = USER, db: DbSession = DB):
+    payment = db.execute(text("SELECT id FROM scheduled_payments WHERE id=:id AND user_id=:uid"), {"id": payment_id, "uid": current_user.id}).scalar()
+    transaction = db.execute(text("SELECT id FROM transactions WHERE id=:id AND user_id=:uid"), {"id": payload.transaction_id, "uid": current_user.id}).scalar()
+    if not payment or not transaction:
+        raise HTTPException(status_code=404, detail="Scheduled Payment or Transaction not found")
+    db.execute(text("""
+        INSERT OR IGNORE INTO scheduled_payment_match_decisions(user_id,transaction_id,scheduled_payment_id,decision,created_at)
+        VALUES(:uid,:tx,:payment_id,'rejected',:now)
+    """), {"uid": current_user.id, "tx": payload.transaction_id, "payment_id": payment_id, "now": utcnow()})
+    db.commit()
+    return {"status": "rejected"}
+
+
+@router.post("/payments/transactions/{transaction_id}/ignore")
+def ignore_transaction(transaction_id: int, current_user: User = USER, db: DbSession = DB):
+    transaction = db.execute(text("SELECT id FROM transactions WHERE id=:id AND user_id=:uid"), {"id": transaction_id, "uid": current_user.id}).scalar()
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    db.execute(text("""
+        INSERT OR IGNORE INTO scheduled_payment_match_decisions(user_id,transaction_id,scheduled_payment_id,decision,created_at)
+        VALUES(:uid,:tx,NULL,'ignored',:now)
+    """), {"uid": current_user.id, "tx": transaction_id, "now": utcnow()})
+    db.commit()
+    return {"status": "ignored"}
+
+
 @router.get("/payments/match-candidates")
-def match_candidates(current_user: User = USER, db: DbSession = DB):
+def match_candidates(
+    date_tolerance_days: int = Query(default=7, ge=1, le=30),
+    current_user: User = USER,
+    db: DbSession = DB,
+):
     ensure_scheduled_payments(db, current_user)
     payments = db.execute(text("""
         SELECT sp.*,r.name,r.payee_merchant FROM scheduled_payments sp JOIN recurring_expenses r ON r.id=sp.recurring_expense_id
@@ -384,25 +434,45 @@ def match_candidates(current_user: User = USER, db: DbSession = DB):
     for tx in transactions:
         if db.execute(text("SELECT id FROM scheduled_payments WHERE user_id=:uid AND matched_transaction_id=:tx"), {"uid": current_user.id, "tx": tx["id"]}).scalar():
             continue
+        ignored = db.execute(text("""
+            SELECT id FROM scheduled_payment_match_decisions
+            WHERE user_id=:uid AND transaction_id=:tx AND decision='ignored'
+        """), {"uid": current_user.id, "tx": tx["id"]}).scalar()
+        if ignored:
+            continue
         tx_date = tx.get("transaction_date") or tx.get("date")
         if not tx_date:
             continue
         tx_date = tx_date if isinstance(tx_date, date) else date.fromisoformat(str(tx_date)[:10])
         tx_amount = abs(int(tx["amount_cents"]))
-        tx_text = str(tx.get("merchant") or tx.get("description") or "").casefold()
+        tx_text = str(tx.get("merchant") or tx.get("description") or "").strip().casefold()
         for payment in payments:
+            rejected = db.execute(text("""
+                SELECT id FROM scheduled_payment_match_decisions
+                WHERE user_id=:uid AND transaction_id=:tx AND scheduled_payment_id=:payment_id AND decision='rejected'
+            """), {"uid": current_user.id, "tx": tx["id"], "payment_id": payment["id"]}).scalar()
+            if rejected:
+                continue
             expected_date = payment["expected_date"] if isinstance(payment["expected_date"], date) else date.fromisoformat(str(payment["expected_date"])[:10])
             days = abs((tx_date - expected_date).days)
-            if days > 7:
+            if days > date_tolerance_days:
                 continue
             expected = payment["expected_amount_cents"]
             amount_delta = abs(tx_amount - expected) if expected is not None else 0
             amount_ratio = amount_delta / max(expected or tx_amount or 1, 1)
             text_match = bool(payment.get("payee_merchant") and str(payment["payee_merchant"]).casefold() in tx_text)
             account_match = payment.get("account_id") is None or int(payment["account_id"]) == int(tx.get("account_id") or -1)
-            if amount_ratio <= 0.02 and days <= 2 and account_match:
+            learned = db.execute(text("""
+                SELECT confirmed_count FROM recurring_match_mappings
+                WHERE user_id=:uid AND recurring_expense_id=:rid AND merchant_key=:merchant
+                  AND (account_id IS NULL OR account_id=:account_id)
+                ORDER BY confirmed_count DESC LIMIT 1
+            """), {"uid": current_user.id, "rid": payment["recurring_expense_id"], "merchant": tx_text, "account_id": tx.get("account_id")}).scalar()
+            if learned and account_match:
                 confidence = "high"
-            elif (amount_ratio <= 0.10 and days <= 4) or (text_match and days <= 7):
+            elif amount_ratio <= 0.02 and days <= 2 and account_match:
+                confidence = "high"
+            elif (amount_ratio <= 0.10 and days <= min(4, date_tolerance_days)) or (text_match and days <= date_tolerance_days):
                 confidence = "medium"
             else:
                 continue
@@ -410,6 +480,7 @@ def match_candidates(current_user: User = USER, db: DbSession = DB):
                 "transaction_id": tx["id"], "transaction_date": tx_date, "transaction_amount": cents_to_decimal(tx_amount),
                 "transaction_description": tx.get("merchant") or tx.get("description"), "scheduled_payment_id": payment["id"],
                 "recurring_expense_id": payment["recurring_expense_id"], "expense_name": payment["name"], "expected_date": expected_date,
-                "expected_amount": cents_to_decimal(expected) if expected is not None else None, "difference": cents_to_decimal(amount_delta), "confidence": confidence,
+                "expected_amount": cents_to_decimal(expected) if expected is not None else None, "difference": cents_to_decimal(amount_delta),
+                "confidence": confidence, "learned_mapping": bool(learned),
             })
     return output
