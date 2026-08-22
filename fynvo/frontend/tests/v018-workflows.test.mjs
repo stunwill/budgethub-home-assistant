@@ -25,9 +25,9 @@ test('zero-entry category rows do not render repeated entry links', () => {
   assert.match(pages, /category-count-empty-v018/);
 });
 
-test('Recurring Expenses exposes non-destructive duplicate review', () => {
-  assert.match(pages, /\/v018\/recurring-expenses\/duplicates/);
-  assert.match(pages, /Nothing has been merged automatically/);
+test('Recurring Expenses delegates to the current focused page implementation', () => {
+  assert.match(pages, /RecurringExpensesPageV151/);
+  assert.match(pages, /return <RecurringExpensesPageV151 \{\.\.\.props\}\/>/);
 });
 
 test('Income keeps the Date Range correction active', () => {
