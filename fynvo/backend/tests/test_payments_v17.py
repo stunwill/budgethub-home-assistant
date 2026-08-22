@@ -1,9 +1,8 @@
 from datetime import date, timedelta
 
-from sqlalchemy import text
-
 from app.database import get_engine
 from app.payments_v17 import _status_for, default_payment_handling
+from sqlalchemy import text
 
 
 def setup_user(client):
