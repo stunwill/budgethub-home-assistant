@@ -64,7 +64,6 @@ def _run_v11_migrations(engine) -> None:
         """))
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_transaction_splits_transaction ON transaction_splits(user_id, transaction_id)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS idx_import_batches_coverage ON import_batches(user_id, account_id, coverage_status, coverage_start, coverage_end)"))
-
         current = connection.execute(text("SELECT max(version) FROM schema_version")).scalar()
         if current is None:
             connection.execute(text("INSERT INTO schema_version (version) VALUES (10)"))
@@ -81,17 +80,7 @@ def _run_migrations_v1() -> None:
 
 database.run_migrations = _run_migrations_v1
 
-v1.CATEGORY_SEED["Housing"] = [
-    "Mortgage",
-    "Rent",
-    "Council Rates",
-    "Body Corporate",
-    "Home Maintenance",
-    "Home Improvements",
-    "Security",
-]
-
-schemas.RecurringExpenseCreate = v1.RecurringExpenseCreateV1
+v1.CATEGORY_SEED["Housing"] = ["Mortgage", "Rent", "Council Rates", "Body Corporate", "Home Maintenance", "Home Improvements", "Security"]
 
 _legacy_get_card = v1._get_card
 
@@ -135,16 +124,7 @@ def _recurring_response_v0174(db, user, row):
     result["derived_account_name"] = result.get("account_name")
     if result.get("card_id"):
         card = _get_card_v0174(db, user, result["card_id"])
-        result["card"] = {
-            "id": card.id,
-            "account_id": card.account_id,
-            "account_name": card.account_name,
-            "name": card.name,
-            "card_type": card.card_type,
-            "last_four": card.last_four,
-            "display_name": card.display_name,
-            "is_active": bool(card.is_active),
-        }
+        result["card"] = {"id": card.id, "account_id": card.account_id, "account_name": card.account_name, "name": card.name, "card_type": card.card_type, "last_four": card.last_four, "display_name": card.display_name, "is_active": bool(card.is_active)}
     else:
         result["card"] = None
     method = result.get("payment_method") or "not_set"
@@ -156,7 +136,6 @@ def _recurring_response_v0174(db, user, row):
 
 
 v1._recurring_response = _recurring_response_v0174
-finance.create_recurring = v1.create_recurring_v1
 finance.recurring_response = v1.recurring_response
 
 _reference_seed_sync_suppressed: ContextVar[bool] = ContextVar("fynvo_reference_seed_sync_suppressed", default=False)
@@ -212,7 +191,6 @@ def _list_categories_v1_seeded(db, user):
 
 v1.list_categories_v1 = _list_categories_v1_seeded
 budget.list_categories = _list_categories_v1_seeded
-
 _legacy_create_category_v1 = v1.create_category_v1
 _legacy_update_category_v1 = v1.update_category_v1
 
@@ -263,7 +241,7 @@ v1.list_recurring_v1 = _list_recurring_v1_seeded
 finance.list_recurring = _list_recurring_v1_seeded
 forecast._recurring_events = v1.forecast_recurring_events_v1
 
-v1.router.routes = [route for route in v1.router.routes if getattr(route, "path", None) != "/recurring-expenses/cost"]
+v1.router.routes = [route for route in v1.router.routes if not (getattr(route, "path", None) == "/recurring-expenses/cost" or (getattr(route, "path", None) == "/recurring-expenses/{expense_id}" and "PUT" in getattr(route, "methods", set())))]
 
 
 def _recurring_cost_endpoint_v0174(amount: str, frequency: str, interval_count: int | None = None, current_user=USER_DEPENDENCY):
@@ -278,43 +256,21 @@ v1.router.add_api_route("/recurring-expenses/cost", _recurring_cost_endpoint_v01
 
 def _data_integrity_v0174(current_user=USER_DEPENDENCY, db=DB_DEPENDENCY):
     schema_version = db.execute(text("SELECT MAX(version) FROM schema_version")).scalar() or 0
-    orphan_cards = db.execute(text("""
-        SELECT COUNT(*) FROM cards c LEFT JOIN accounts a ON a.id=c.account_id AND a.user_id=c.user_id
-        WHERE c.user_id=:uid AND a.id IS NULL
-    """), {"uid": current_user.id}).scalar() or 0
+    orphan_cards = db.execute(text("SELECT COUNT(*) FROM cards c LEFT JOIN accounts a ON a.id=c.account_id AND a.user_id=c.user_id WHERE c.user_id=:uid AND a.id IS NULL"), {"uid": current_user.id}).scalar() or 0
     orphan_category_references = 0
     for table_name in ("transactions", "income_sources", "recurring_expenses", "bills", "planned_spending", "budgets"):
-        orphan_category_references += db.execute(text(f"""
-            SELECT COUNT(*) FROM {table_name} r LEFT JOIN categories c ON c.id=r.category_id AND c.user_id=r.user_id
-            WHERE r.user_id=:uid AND r.category_id IS NOT NULL AND c.id IS NULL
-        """), {"uid": current_user.id}).scalar() or 0
+        orphan_category_references += db.execute(text(f"SELECT COUNT(*) FROM {table_name} r LEFT JOIN categories c ON c.id=r.category_id AND c.user_id=r.user_id WHERE r.user_id=:uid AND r.category_id IS NOT NULL AND c.id IS NULL"), {"uid": current_user.id}).scalar() or 0
     return {"schema_version": int(schema_version), "orphan_cards": int(orphan_cards), "orphan_category_references": int(orphan_category_references), "status": "ok" if not orphan_cards and not orphan_category_references else "error"}
 
 
 v1.router.add_api_route("/v1/acceptance/data-integrity", _data_integrity_v0174, methods=["GET"])
 
-from . import (
-    auth_v15,
-    banking_v12,
-    budget_v14,
-    corrective_v0174,
-    dashboard_v12,
-    goals,
-    insights_v14,
-    payments_v17,
-    scenarios,
-    v09,
-    v11,
-    v13_cashflow,
-)
+from . import auth_v15, banking_v12, budget_v14, corrective_v0174, dashboard_v12, goals, insights_v14, payments_v17, scenarios, v09, v11, v13_cashflow
 
-v09.router.routes = [
-    route for route in v09.router.routes
-    if not (
-        getattr(route, "path", None) == "/api/budgets/analysis"
-        or (getattr(route, "path", None) == "/api/recurring-expenses/{expense_id}" and "PUT" in getattr(route, "methods", set()))
-    )
-]
+schemas.RecurringExpenseCreate = payments_v17.RecurringExpenseCreateV17
+finance.create_recurring = payments_v17.create_recurring_v17
+
+v09.router.routes = [route for route in v09.router.routes if not (getattr(route, "path", None) == "/api/budgets/analysis" or (getattr(route, "path", None) == "/api/recurring-expenses/{expense_id}" and "PUT" in getattr(route, "methods", set())))]
 v09.router.include_router(budget_v14.router)
 v09.router.include_router(v1.router)
 v09.router.include_router(auth_v15.router)
