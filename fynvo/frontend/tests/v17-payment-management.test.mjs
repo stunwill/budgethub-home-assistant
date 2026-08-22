@@ -24,7 +24,10 @@ test('recurring form uses payment method conditional sources instead of generic 
   assert.match(payment, /Bank Account/);
   assert.match(payment, /method === 'automatic_card_payment'/);
   assert.match(payment, /Linked to account:/);
-  assert.doesNotMatch(app, /if \(type === 'recurring'\).*<Field label="Account">/s);
+  const recurringStart = app.indexOf("if (type === 'recurring')");
+  const billsStart = app.indexOf("if (type === 'bills')", recurringStart);
+  const recurringBranch = app.slice(recurringStart, billsStart);
+  assert.doesNotMatch(recurringBranch, /<Field label="Account">/);
 });
 
 
