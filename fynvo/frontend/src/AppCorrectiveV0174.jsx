@@ -88,7 +88,7 @@ export default function AppCorrectiveV0174() {
   async function refreshDashboard(days = rangeDays) { const requestId = ++commandRequestRef.current; setDashboardLoading(true); try { const command = await j(`/dashboard/command-centre?range_days=${days}`); if (requestId !== commandRequestRef.current) return; setData((current) => ({ ...current, command })); } finally { if (requestId === commandRequestRef.current) setDashboardLoading(false); } }
   async function loadSupportingData() {
     const [accounts, cards, transactions, income, recurring, scheduledPayments, paymentAttention, bills, planned, categories, budgets, goals, imports, review, suggestions, insights, financialHealth, budgetAnalysis, forecast] = await Promise.all([
-      j('/accounts'), j('/cards'), j('/transactions'), j('/income'), j('/recurring-expenses'), j('/scheduled-payments'), j('/payments/attention'), j('/bills'), j('/planned-spending'), j('/categories'), j('/budgets'), j('/goals'), j('/imports/history'), j('/reconciliation/review-queue'), j('/intelligence/suggestions'), j(`/insights?horizon_days=${rangeDays}&refresh=false`), j(`/insights/financial-health?horizon_days=${rangeDays}`), j('/budgets/analysis'), j(`/forecast?mode=expected&horizon=${rangeDays}d`),
+      j('/accounts'), j('/cards?include_inactive=true'), j('/transactions'), j('/income'), j('/recurring-expenses'), j('/scheduled-payments'), j('/payments/attention'), j('/bills'), j('/planned-spending'), j('/categories'), j('/budgets'), j('/goals'), j('/imports/history'), j('/reconciliation/review-queue'), j('/intelligence/suggestions'), j(`/insights?horizon_days=${rangeDays}&refresh=false`), j(`/insights/financial-health?horizon_days=${rangeDays}`), j('/budgets/analysis'), j(`/forecast?mode=expected&horizon=${rangeDays}d`),
     ]);
     setData((current) => ({ ...current, accounts: accounts || [], cards: cards || [], transactions: transactions || [], income: income || [], recurring: recurring || [], scheduledPayments: scheduledPayments || [], paymentAttention: paymentAttention || [], bills: bills || [], planned: planned || [], categories: categories || [], budgets: budgets || [], goals: goals || [], imports: imports || [], review: review || [], suggestions: suggestions || [], insights: insights || [], financialHealth, budgetAnalysis, forecast }));
   }
@@ -117,7 +117,12 @@ export default function AppCorrectiveV0174() {
   async function reviewInsight(id) { const res = await api(`/insights/${id}/reviewed`, { method: 'POST' }); if (res.ok) await loadAll(); else setError('Could not mark Insight as reviewed.'); }
   async function refreshInsights() { const res = await api(`/insights/refresh?horizon_days=${rangeDays}`, { method: 'POST' }); if (res.ok) { setSuccess('Financial Insights refreshed.'); await loadAll(); } else setError('Could not refresh Financial Insights.'); }
 
-  const quickDefaults = (type) => ({ type, values: normaliseRecord(type, { account_id: type === 'planned' ? null : data.accounts[0]?.id || '', destination_account_id: data.accounts[0]?.id || '' }) });
+  const quickDefaults = (type) => {
+    const defaults = type === 'recurring'
+      ? { account_id: '', card_id: '' }
+      : { account_id: type === 'planned' ? null : data.accounts[0]?.id || '', destination_account_id: data.accounts[0]?.id || '' };
+    return { type, values: normaliseRecord(type, defaults) };
+  };
   const openQuickAdd = (type) => { setQuickMenuOpen(false); setQuick(quickDefaults(type)); };
   const openForecastDetail = (event) => { const source = forecastSource(event, data); setDetail({ event, ...source }); };
   const editForecastSource = () => { if (!detail?.type || !detail?.record) return; const { type, record } = detail; setDetail(null); setEdit({ type, label: recordLabels[type], row: record, values: normaliseRecord(type, record) }); };
