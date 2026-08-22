@@ -2,6 +2,27 @@
 
 All notable Fynvo changes are documented here. Starting with v0.3.0, every release must include a user-readable changelog entry, Home Assistant-visible release notes and GitHub release notes.
 
+## v1.5.1 - Recurring Expenses UI refresh
+
+### Changed
+- Redesigned the Recurring Expenses experience around upcoming household cash-flow visibility rather than administrative record cards.
+- Consolidated search, date-range, frequency and Category filtering into one responsive filter workflow with Clear Filters behaviour.
+- Added a compact Scheduled Total summary with payment count and average-payment visibility derived from the filtered scheduled payments.
+- Added prominent Next Payment and Largest Upcoming Expense context.
+- Added a period breakdown using Next 7 days, Following 7 days and Later buckets that reconcile to the filtered total without double-counting.
+- Replaced desktop recurring-expense row cards with one lightweight sortable table showing relative and actual due dates, Name, Category, Amount, Frequency and accessible Actions.
+- Added restrained overdue, today/tomorrow and near-term due-date urgency styling that always includes textual status.
+- Added right-aligned tabular currency values and subtle frequency badges for faster scanning.
+- Replaced the native-looking Edit control with an accessible per-row actions menu while preserving the existing edit workflow.
+- Added compact responsive mobile rows, mobile search, a filter sheet and collapsible summary details modelled on the supplied Fynvo recurring-expense mock-ups.
+- Added first-class empty states for households with no recurring expenses and filtered result sets with no matches.
+- Kept recurring rules distinct from scheduled-payment rows, and reused the existing occurrence summary service rather than duplicating recurring records.
+
+### Release scope
+- This is a focused UI/usability release. No database migration is required.
+- Existing recurring-expense creation, editing, persistence, recurrence generation, forecasting, authentication and Home Assistant ingress architecture remain unchanged.
+- A recurring-expense List/Calendar switch is not exposed in this release because the existing general Financial Calendar does not yet provide a production-ready recurring-expense-specific calendar interaction. The recurring page remains structured so a real Calendar view can be added without replacing the List implementation.
+
 ## v1.3.0 - Cash Flow Intelligence, Financial Calendar & Smart Forecasting
 
 ### Added
@@ -102,30 +123,3 @@ All notable Fynvo changes are documented here. Starting with v0.3.0, every relea
 - Automatic production bank synchronisation and production-grade automatic reconciliation.
 - Advanced multi-user household roles and permissions, immutable audit logs and complete user activity/change history.
 - Home Assistant financial sensors/entities and standalone Cloudways deployment.
-
-## v0.18.0 - Financial Data Integrity, Category Management & Workflow Polish
-
-### Added
-- Added a supported Category merge workflow with a preview of affected Transactions, Income, Recurring Expenses, Bills, Planned Spending, Budgets and child Categories before any changes are made.
-- Added Category health diagnostics for duplicate parent/child Categories, orphan children, children of inactive parents, circular relationships, orphan/inactive references, stale denormalised paths and Category-type conflicts.
-- Added recurring-expense duplicate review using normalised name, amount, frequency, payment source and due-date proximity. Possible duplicates are surfaced for review and are never merged automatically.
-- Added Account/Card integrity diagnostics for orphan Cards and active Cards linked to archived Accounts.
-- Added a filtered Upcoming Commitments service foundation with overdue inclusion and duplicate-suppression support.
-- Added a single-command CI-equivalent validation script covering Python compilation, Ruff, backend tests, application import, frontend tests/build, Home Assistant metadata and Docker build.
-
-### Changed
-- Category duplicate prevention now normalises case, leading/trailing whitespace and repeated whitespace for create and rename/move operations.
-- Category merges preserve financial history by reassigning references and deactivating the source Category rather than deleting it.
-- Merging parent Categories also consolidates same-name child Categories under the destination while retaining their linked records.
-- Categories mobile presentation is more compact and no longer gives zero-entry links unnecessary visual emphasis.
-- Categories now expose `Check Category Data` and `Merge Category` actions directly from the management page.
-- Recurring Expenses now surface possible duplicate groups without automatically changing household data.
-- Mobile financial table/card spacing has been tightened while preserving touch targets and desktop behaviour.
-- Version metadata is aligned to v0.18.0 across the backend, frontend and Home Assistant add-on.
-
-### Preserved behaviour
-- The redundant Overview `Upcoming / Next 7 days` card remains removed. `Upcoming Commitments` remains the authoritative future-obligation view.
-- The Income page remains independent of the global Date Range selector.
-- Existing linked Bill/Recurring Expense schedule suppression remains in place so a linked Bill and its generated recurring occurrence are not both scheduled for the same date.
-- Effective-dated recurring amount changes remain the mechanism for changes such as `$140/month` becoming `$80/month` from a future date without rewriting history.
-- No direct ING connectivity, new production Open Banking/CDR provider, bank credentials or Cloudways migration is introduced by this release.
