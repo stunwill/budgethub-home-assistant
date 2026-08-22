@@ -1,15 +1,16 @@
 const statusLabel = (value) => String(value || 'active').replaceAll('_', ' ');
 
-function RecordCard({ date, title, subtitle, amount, meta, status, onEdit }) {
+function RecordCard({ date, title, subtitle, amount, meta, status, onEdit, children }) {
   return <article className="v14-record-card">
     <div className="v14-record-date-row"><span>{date}</span>{status && <span className="v14-record-status">{status}</span>}</div>
     <div className="v14-record-main"><div><strong>{title}</strong>{subtitle && <small>{subtitle}</small>}</div>{amount && <strong className="v14-record-amount">{amount}</strong>}</div>
+    {children}
     <div className="v14-record-footer"><span>{meta || ''}</span><button type="button" onClick={onEdit}>Edit</button></div>
   </article>;
 }
 
-function PageShell({ title, description, onAdd, children }) {
-  return <section className="panel v14-record-page"><div className="panel-head"><div><h2>{title}</h2><p className="muted">{description}</p></div><button className="primary ghost" type="button" onClick={onAdd}>+ Add</button></div><div className="v14-record-list">{children}</div></section>;
+function PageShell({ title, description, onAdd, children, secondaryAction }) {
+  return <section className="panel v14-record-page"><div className="panel-head"><div><h2>{title}</h2><p className="muted">{description}</p></div><div className="v14-page-actions">{secondaryAction}<button className="primary ghost" type="button" onClick={onAdd}>+ Add</button></div></div><div className="v14-record-list">{children}</div></section>;
 }
 
 export function BillsPageV14({ rows, onEdit, onAdd, money, dateLabel, normaliseRecord }) {
@@ -20,8 +21,13 @@ export function IncomePageV14({ rows, onEdit, onAdd, money, dateLabel, normalise
   return <PageShell title="Income" description="Recurring and expected household income." onAdd={onAdd}>{rows.length ? rows.map((row) => <RecordCard key={row.id} date={dateLabel(row.next_payment_date)} title={row.name || row.payer || 'Income'} subtitle={row.category || row.payer || 'Income'} amount={money(row.amount)} meta={row.frequency ? String(row.frequency).replaceAll('_', ' ') : row.account_name || ''} status={row.is_active === false ? 'inactive' : 'active'} onEdit={() => onEdit({ type: 'income', label: 'Income', row, values: normaliseRecord('income', row) })}/>) : <p className="muted">No income records yet.</p>}</PageShell>;
 }
 
-export function AccountsPageV14({ rows, onEdit, onAdd, money, normaliseRecord }) {
-  return <PageShell title="Accounts" description="Household accounts and their current financial position." onAdd={onAdd}>{rows.length ? rows.map((row) => <RecordCard key={row.id} date={row.institution || 'Account'} title={row.name || 'Account'} subtitle={String(row.account_type || 'account').replaceAll('_', ' ')} amount={money(row.current_balance ?? row.opening_balance)} meta={row.minimum_balance ? `Safety buffer ${money(row.minimum_balance)}` : row.account_suffix ? `••••${row.account_suffix}` : ''} status={row.archived_at ? 'inactive' : 'active'} onEdit={() => onEdit({ type: 'accounts', label: 'Account', row, values: normaliseRecord('accounts', row) })}/>) : <p className="muted">No accounts yet.</p>}</PageShell>;
+export function AccountsPageV14({ rows, cards = [], onEdit, onAdd, onOpenCards, money, normaliseRecord }) {
+  return <PageShell title="Accounts" description="Household accounts, current position and linked Cards." onAdd={onAdd} secondaryAction={<button type="button" onClick={onOpenCards}>Manage Cards</button>}>{rows.length ? rows.map((row) => {
+    const linkedCards = cards.filter((card) => Number(card.account_id) === Number(row.id));
+    return <RecordCard key={row.id} date={row.institution || 'Account'} title={row.name || 'Account'} subtitle={String(row.account_type || 'account').replaceAll('_', ' ')} amount={money(row.current_balance ?? row.opening_balance)} meta={row.minimum_balance ? `Safety buffer ${money(row.minimum_balance)}` : row.account_suffix ? `••••${row.account_suffix}` : ''} status={row.archived_at ? 'inactive' : 'active'} onEdit={() => onEdit({ type: 'accounts', label: 'Account', row, values: normaliseRecord('accounts', row) })}>
+      <div className="v17-account-cards"><span>Cards</span>{linkedCards.length ? linkedCards.map((card) => <small key={card.id}><strong>{card.display_name}</strong> · {card.card_type} · {card.is_active ? 'Active' : 'Inactive'}</small>) : <small>No Cards linked</small>}{onOpenCards && <button type="button" className="link-button" onClick={onOpenCards}>+ Add or manage Card</button>}</div>
+    </RecordCard>;
+  }) : <p className="muted">No accounts yet.</p>}</PageShell>;
 }
 
 export function PlannedSpendingPageV14({ rows, onEdit, onAdd, money, dateLabel, normaliseRecord }) {
