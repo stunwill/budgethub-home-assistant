@@ -1,5 +1,40 @@
 # Fynvo Add-on Changelog
 
+## v1.7.0 - Payment Handling, Card Management & Reconciliation
+
+### Payment handling
+- Completed automatic/manual Payment Handling in the production Recurring Expense form.
+- Direct Debit now conditionally uses a Bank Account, while Automatic Card Payment uses a Card and derives its linked Account automatically.
+- Manual payment methods no longer require an unnecessary Account or Card.
+- Added a configurable automatic-payment confirmation grace period, defaulting to 3 days.
+
+### Account → Card management
+- Added production UI Card creation, editing, activation/deactivation and linked-Account display.
+- Existing Card IDs and Account relationships are preserved, and multiple Cards may belong to the same Account.
+- Only Card last-four identification is stored/displayed by this workflow.
+
+### Scheduled Payments
+- Added additive Scheduled Payment records separate from Recurring Expense rules.
+- Added Upcoming, Due, Overdue, Expected Automatically, Automatic Payment Not Confirmed, Paid, Skipped and Cancelled states.
+- Added recurrence-aware generation across weekly, fortnightly, every-four-weeks, monthly, quarterly, yearly and custom-day schedules.
+- Automatic payments are not blindly marked Paid on the due date.
+
+### Reconciliation
+- Added Payments requiring attention, Mark as Paid, Skip Payment and expected-vs-actual values.
+- Added transaction matching foundations with confidence, merchant evidence, Card-derived Account evidence and one-to-one duplicate protection.
+- Confirmed transaction matches record actual date/amount and may establish learned merchant mappings.
+
+### Data safety
+- v1.7 migration is additive and idempotent.
+- Existing Accounts, Cards, Recurring Expenses and historical financial records are preserved.
+- Legacy Account relationships are not falsely converted to Direct Debit without reliable existing evidence.
+
+### Versioning
+- Updated the Home Assistant add-on and frontend release metadata to 1.7.0.
+
+### Manual release gates
+- Installed Home Assistant ingress, representative upgrade/backup validation, real iPhone/mobile acceptance and production screenshots remain manual gates where repository CI cannot execute them.
+
 ## v1.2.0 - Household Identity & Access
 
 ### Household identity
