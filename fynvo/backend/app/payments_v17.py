@@ -468,9 +468,7 @@ def match_candidates(
                   AND (account_id IS NULL OR account_id=:account_id)
                 ORDER BY confirmed_count DESC LIMIT 1
             """), {"uid": current_user.id, "rid": payment["recurring_expense_id"], "merchant": tx_text, "account_id": tx.get("account_id")}).scalar()
-            if learned and account_match:
-                confidence = "high"
-            elif amount_ratio <= 0.02 and days <= 2 and account_match:
+            if (learned and account_match) or (amount_ratio <= 0.02 and days <= 2 and account_match):
                 confidence = "high"
             elif (amount_ratio <= 0.10 and days <= min(4, date_tolerance_days)) or (text_match and days <= date_tolerance_days):
                 confidence = "medium"
